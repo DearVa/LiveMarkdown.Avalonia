@@ -1,24 +1,35 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36203.30 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia", "src\LiveMarkdown.Avalonia\LiveMarkdown.Avalonia.csproj", "{3D92A920-890E-4495-8BD2-FD854E8A6D24}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Demo", "src\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo.csproj", "{7F01590A-79EE-456D-ABB8-4B4745B7C42B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{DE9EAAFE-CDC8-4B66-845C-5F4CF1DADE6C}"
 	ProjectSection(SolutionItems) = preProject
 		.gitignore = .gitignore
+		CONTRIBUTING.md = CONTRIBUTING.md
 		Directory.Build.props = Directory.Build.props
 		Directory.Packages.props = Directory.Packages.props
 		LICENSE = LICENSE
 		README.md = README.md
 		Settings.XamlStyler = Settings.XamlStyler
-		CONTRIBUTING.md = CONTRIBUTING.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{1260A1E5-0D9E-4AF1-9762-4A0091561993}"
 	ProjectSection(SolutionItems) = preProject
 		.github\workflows\nuget-publish.yml = .github\workflows\nuget-publish.yml
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Demo", "src\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo.csproj", "{550A49CF-E82C-42CA-8586-96D38C3A3C81}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Demo.Android", "src\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo.Android\LiveMarkdown.Avalonia.Demo.Android.csproj", "{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Demo.Desktop", "src\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo.Desktop\LiveMarkdown.Avalonia.Demo.Desktop.csproj", "{563ED670-F151-4576-BFBB-DE7B12339D46}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Demo.iOS", "src\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo.iOS\LiveMarkdown.Avalonia.Demo.iOS.csproj", "{0E8F05EA-5FD9-4364-B620-2211CBE16444}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Demo.Browser", "src\LiveMarkdown.Avalonia.Demo\LiveMarkdown.Avalonia.Demo.Browser\LiveMarkdown.Avalonia.Demo.Browser.csproj", "{339C1452-35D4-466C-8214-6ED8FE1F9565}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,9 +41,32 @@ Global
 		{3D92A920-890E-4495-8BD2-FD854E8A6D24}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D92A920-890E-4495-8BD2-FD854E8A6D24}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D92A920-890E-4495-8BD2-FD854E8A6D24}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7F01590A-79EE-456D-ABB8-4B4745B7C42B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7F01590A-79EE-456D-ABB8-4B4745B7C42B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7F01590A-79EE-456D-ABB8-4B4745B7C42B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7F01590A-79EE-456D-ABB8-4B4745B7C42B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{550A49CF-E82C-42CA-8586-96D38C3A3C81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{550A49CF-E82C-42CA-8586-96D38C3A3C81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{550A49CF-E82C-42CA-8586-96D38C3A3C81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{550A49CF-E82C-42CA-8586-96D38C3A3C81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06FF26CC-7E00-4A9D-A461-FDC24B537DCE}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{563ED670-F151-4576-BFBB-DE7B12339D46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{563ED670-F151-4576-BFBB-DE7B12339D46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{563ED670-F151-4576-BFBB-DE7B12339D46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{563ED670-F151-4576-BFBB-DE7B12339D46}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E8F05EA-5FD9-4364-B620-2211CBE16444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E8F05EA-5FD9-4364-B620-2211CBE16444}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E8F05EA-5FD9-4364-B620-2211CBE16444}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{0E8F05EA-5FD9-4364-B620-2211CBE16444}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E8F05EA-5FD9-4364-B620-2211CBE16444}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E8F05EA-5FD9-4364-B620-2211CBE16444}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{339C1452-35D4-466C-8214-6ED8FE1F9565}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{339C1452-35D4-466C-8214-6ED8FE1F9565}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{339C1452-35D4-466C-8214-6ED8FE1F9565}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{339C1452-35D4-466C-8214-6ED8FE1F9565}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
