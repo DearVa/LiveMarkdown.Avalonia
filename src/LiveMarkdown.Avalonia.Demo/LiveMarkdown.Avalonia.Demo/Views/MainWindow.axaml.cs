@@ -1,12 +1,11 @@
 using Avalonia.Controls;
 
-namespace LiveMarkdown.Avalonia.Demo.Views
+namespace LiveMarkdown.Avalonia.Demo.Views;
+
+public partial class MainWindow : Window
 {
-    public partial class MainWindow : Window
+    public MainWindow()
     {
-        public MainWindow()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

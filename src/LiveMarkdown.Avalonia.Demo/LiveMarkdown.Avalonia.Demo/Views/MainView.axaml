@@ -1,62 +1,61 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="clr-namespace:LiveMarkdown.Avalonia.Demo.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             xmlns:md="clr-namespace:LiveMarkdown.Avalonia;assembly=LiveMarkdown.Avalonia" 
-             x:Class="LiveMarkdown.Avalonia.Demo.Views.MainView"
-             x:DataType="vm:MainViewModel">
+﻿<UserControl
+  x:Class="LiveMarkdown.Avalonia.Demo.Views.MainView" xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:md="clr-namespace:LiveMarkdown.Avalonia;assembly=LiveMarkdown.Avalonia"
+  xmlns:vm="clr-namespace:LiveMarkdown.Avalonia.Demo.ViewModels" d:DesignHeight="450"
+  d:DesignWidth="800" x:DataType="vm:MainViewModel"
+  mc:Ignorable="d">
   <Design.DataContext>
-    <!-- This only sets the DataContext for the previewer in an IDE,
-         to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-    <vm:MainViewModel />
+    <vm:MainViewModel/>
   </Design.DataContext>
-<Grid
-        Margin="4" ColumnDefinitions="*,4,*"
-        RowDefinitions="*,Auto">
-        <ScrollViewer
-            x:Name="RawMarkdownTextBlockScrollViewer" Grid.Row="0"
-            Grid.Column="0" Background="#11FFFFFF"
-            CornerRadius="4">
-            <TextBlock
-                Margin="8,4" Text="{Binding RawMarkdownTextBlock}"
-                FontFamily="Consolas, 'Courier New', monospace" TextWrapping="Wrap"/>
-        </ScrollViewer>
 
-        <ScrollViewer
-            x:Name="MarkdownRendererScrollViewer" Grid.Row="0"
-            Grid.Column="2" Background="#11FFFFFF"
-            CornerRadius="4">
-            <md:MarkdownRenderer
-                x:Name="MarkdownRenderer" Margin="8,4"
-                InlineHyperlinkCommand="{Binding OpenUriCommand}"
-                MarkdownBuilder="{Binding MarkdownBuilder}"/>
-        </ScrollViewer>
+  <Grid
+    Margin="4" ColumnDefinitions="*,4,*"
+    RowDefinitions="*,Auto">
+    <ScrollViewer
+      x:Name="RawMarkdownTextBlockScrollViewer" Grid.Row="0"
+      Grid.Column="0" Background="#11FFFFFF"
+      CornerRadius="4">
+      <TextBlock
+        Margin="8,4" FontFamily="Consolas, 'Courier New', monospace"
+        Text="{Binding RawMarkdownText}"
+        TextWrapping="Wrap"/>
+    </ScrollViewer>
 
-        <StackPanel
-            Grid.Row="1" Grid.Column="0"
-            Grid.ColumnSpan="3" Margin="0,8,0,0"
-            Orientation="Horizontal" Spacing="16">
-            <TextBlock
-                Margin="0,0,-4,0" VerticalAlignment="Center"
-                Text="Select sample: "/>
-            <ComboBox
-                VerticalAlignment="Center"
-                ItemsSource="{Binding MarkdownList}"
-                SelectedItem="{Binding SelectedMarkdown, Mode=OneWayToSource}"/>
+    <ScrollViewer
+      x:Name="MarkdownRendererScrollViewer" Grid.Row="0"
+      Grid.Column="2" Background="#11FFFFFF"
+      CornerRadius="4">
+      <md:MarkdownRenderer
+        x:Name="MarkdownRenderer" Margin="8,4"
+        InlineHyperlinkCommand="{Binding OpenUriCommand}"
+        MarkdownBuilder="{Binding MarkdownBuilder}"/>
+    </ScrollViewer>
 
-            <TextBlock
-                Margin="0,0,-4,0" VerticalAlignment="Center"
-                Text="Render speed: "/>
-            <Slider
-               Width="160"
-                VerticalAlignment="Center" Maximum="100"
-                Minimum="1" Value="{Binding RenderSpeedSlider}"/>
+    <StackPanel
+      Grid.Row="1" Grid.Column="0"
+      Grid.ColumnSpan="3" Margin="0,8,0,0"
+      Orientation="Horizontal" Spacing="16">
+      <TextBlock
+        Margin="0,0,-4,0" VerticalAlignment="Center"
+        Text="Select sample: "/>
+      <ComboBox
+        VerticalAlignment="Center"
+        ItemsSource="{Binding MarkdownList}"
+        SelectedItem="{Binding SelectedMarkdown, Mode=OneWayToSource}"/>
 
-            <Button
-                VerticalAlignment="Center" Click="HandleClearButtonClick"
-                Content="Clear"/>
-        </StackPanel>
-    </Grid>
+      <TextBlock
+        Margin="0,0,-4,0" VerticalAlignment="Center"
+        Text="Render speed: "/>
+      <Slider
+        Width="160" VerticalAlignment="Center"
+        Maximum="100" Minimum="1"
+        Value="{Binding RenderSpeed}"/>
+
+      <Button
+        VerticalAlignment="Center"
+        Command="{Binding ClearMarkdownCommand}"
+        Content="Clear"/>
+    </StackPanel>
+  </Grid>
 </UserControl>
