@@ -30,6 +30,13 @@ It supports **real-time rendering** of Markdown content, so it's ideal for appli
 > 
 > Please use 11.3.0 ~ 11.3.4 or >= 11.3.7 to avoid this problem.
 
+## Donate
+
+This project is fully open-source and free. Your support will improve this project a lot. I sincerely thank all my sponsors!
+
+<a href="https://www.buymeacoffee.com/artemisli"><img src="https://img.buymeacoffee.com/button-api/?text=Support%20%20Me&emoji=&slug=artemisli&button_colour=FFDD00&font_colour=000000&font_family=Comic&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee"/></a>
+<a href="https://afdian.com/a/DearVa"><img width="200" src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="爱发电"></a>
+
 ## ✈️ Roadmap
 
 - [x] Basic Markdown rendering
