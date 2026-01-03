@@ -123,10 +123,22 @@ public partial class MarkdownRenderer : Control
     private ObservableStringBuilderChangedEventArgs? pendingChange;
 
     private readonly DocumentNode documentNode;
-    private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions()
-        .UseCodeBlockSpanFixer()
-        .Build();
+    private readonly MarkdownPipeline pipeline = CreatePipeline();
+
+    /// <summary>
+    /// Optional callback to configure the Markdig pipeline before it is built.
+    /// Set this before any MarkdownRenderer instances are created.
+    /// </summary>
+    public static Action<MarkdownPipelineBuilder>? ConfigurePipeline { get; set; }
+
+    private static MarkdownPipeline CreatePipeline()
+    {
+        var builder = new MarkdownPipelineBuilder()
+            .UseAdvancedExtensions()
+            .UseCodeBlockSpanFixer();
+        ConfigurePipeline?.Invoke(builder);
+        return builder.Build();
+    }
 
     internal static readonly ParametrizedLogger? VerboseLogger;
 
