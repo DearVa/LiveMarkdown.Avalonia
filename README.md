@@ -37,6 +37,7 @@ This project is fully open-source and free. Your support will improve this proje
 
 <a href="https://www.buymeacoffee.com/artemisli"><img src="https://img.buymeacoffee.com/button-api/?text=Support%20%20Me&emoji=&slug=artemisli&button_colour=FFDD00&font_colour=000000&font_family=Comic&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee"/></a>
 <a href="https://afdian.com/a/DearVa"><img width="200" src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="爱发电"></a>
+<a href="https://app.fossa.com/projects/git%2Bgithub.com%2FDearVa%2FLiveMarkdown.Avalonia?ref=badge_shield" alt="FOSSA Status"><img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2FDearVa%2FLiveMarkdown.Avalonia.svg?type=shield"/></a>
 
 ## ✈️ Roadmap
 
@@ -199,6 +200,9 @@ We welcome issues, feature ideas, and PRs! See [CONTRIBUTING.md](CONTRIBUTING.md
 ## 📄 License
 
 Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more information.
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDearVa%2FLiveMarkdown.Avalonia.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FDearVa%2FLiveMarkdown.Avalonia?ref=badge_large)
 
 ### Third-Party Licenses
 
