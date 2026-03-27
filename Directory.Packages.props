@@ -1,36 +1,35 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <AvaloniaVersion>[11.3.0,)</AvaloniaVersion>
+    <AvaloniaVersion>[12.0.0-rc1,)</AvaloniaVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Base packages -->
-    <PackageVersion Include="IgnoresAccessChecksToGenerator" Version="0.8.0"/>
-    <PackageVersion Include="Svg.Controls.Avalonia" Version="11.3.0.1"/>
-    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="11.3.0.1"/>
-    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
-    <PackageVersion Include="PolySharp" Version="1.15.0"/>
+    <PackageVersion Include="IgnoresAccessChecksToGenerator" Version="0.8.0" />
+    <PackageVersion Include="Svg.Controls.Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageVersion Include="PolySharp" Version="1.15.0" />
     <!-- Avalonia packages -->
-    <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="Avalonia.Themes.Simple" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="Avalonia.Browser" Version="$(AvaloniaVersion)"/>
-    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.0"/>
+    <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Themes.Simple" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Browser" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.0" />
     <!-- Markdown packages -->
-    <PackageVersion Include="Markdig" Version="0.43.0"/>
-    <PackageVersion Include="TextMateSharp" Version="1.0.70"/>
-    <PackageVersion Include="TextMateSharp.Grammars" Version="1.0.70"/>
-    <PackageVersion Include="Sylinko.CSharpMath.Avalonia" Version="11.3.0"/>
-    <PackageVersion Include="Mermaider" Version="0.6.0"/>
+    <PackageVersion Include="Markdig" Version="1.1.2" />
+    <PackageVersion Include="TextMateSharp" Version="2.0.3" />
+    <PackageVersion Include="TextMateSharp.Grammars" Version="2.0.3" />
+    <PackageVersion Include="Sylinko.CSharpMath.Avalonia" Version="11.3.0" />
+    <PackageVersion Include="Mermaider" Version="0.6.0" />
     <!-- NUnit packages -->
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.1"/>
-    <PackageVersion Include="coverlet.collector" Version="6.0.3"/>
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0"/>
-    <PackageVersion Include="NUnit" Version="4.3.2"/>
-    <PackageVersion Include="NUnit.Analyzers" Version="4.5.0"/>
-    <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0"/>
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.1" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.3" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="NUnit" Version="4.3.2" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.5.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
 </Project>

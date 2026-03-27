@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Metadata;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
@@ -236,7 +237,7 @@ public class MarkdownTextBlock : SelectableTextBlock
             handledEventsToo: true);
     }
 
-    protected override void OnLostFocus(RoutedEventArgs e)
+    protected override void OnLostFocus(FocusChangedEventArgs e)
     {
         base.OnLostFocus(e);
 
@@ -259,10 +260,10 @@ public class MarkdownTextBlock : SelectableTextBlock
 
         var defaultProperties = new GenericTextRunProperties(
             typeface,
-            FontFeatures,
             FontSize,
             TextDecorations,
-            Foreground);
+            Foreground,
+            fontFeatures: FontFeatures);
 
         var paragraphProperties = new GenericTextParagraphProperties(
             FlowDirection,
@@ -312,9 +313,11 @@ public class MarkdownTextBlock : SelectableTextBlock
                         overlapLength,
                         new GenericTextRunProperties(
                             textRun.Properties?.Typeface ?? typeface,
-                            textRun.Properties?.FontFeatures ?? FontFeatures,
                             FontSize,
-                            foregroundBrush: SelectionForegroundBrush)));
+                            textRun.Properties?.TextDecorations ?? TextDecorations,
+                            SelectionForegroundBrush,
+                            fontFeatures: textRun.Properties?.FontFeatures ?? FontFeatures)
+                    ));
 
                 accumulatedLength += runLength;
             }
@@ -362,6 +365,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         if (start + length <= 0) yield break;
 
         var currentY = 0d;
+        const double epsilon = 0.5; // Tolerance for floating point comparison
         foreach (var textLine in TextLayout.TextLines)
         {
             // Current line isn't covered.
@@ -378,10 +382,8 @@ public class MarkdownTextBlock : SelectableTextBlock
                 foreach (var bounds in textBounds)
                 {
                     if (last.HasValue &&
-#pragma warning disable CS0618 // MathUtilities is obsolete, but still works
-                        MathUtilities.AreClose(last.Value.Right, bounds.Rectangle.Left) &&
-                        MathUtilities.AreClose(last.Value.Top, currentY))
-#pragma warning restore CS0618 // MathUtilities is obsolete, but still works
+                        Math.Abs(last.Value.Right - bounds.Rectangle.Left) < epsilon &&
+                        Math.Abs(last.Value.Top - currentY) < epsilon)
                     {
                         last = last.Value.WithWidth(last.Value.Width + bounds.Rectangle.Width);
                     }
@@ -507,3 +509,4 @@ public class MarkdownTextBlock : SelectableTextBlock
         PseudoClasses.Set(":pointerover-link", pointerLink is not null);
     }
 }
+

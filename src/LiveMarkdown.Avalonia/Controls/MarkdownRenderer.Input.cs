@@ -3,7 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
-using Avalonia.Utilities;
+using Avalonia.Input.Platform;
 using Avalonia.VisualTree;
 
 namespace LiveMarkdown.Avalonia;
@@ -445,11 +445,9 @@ public partial class MarkdownRenderer
     {
         var point = e.GetPosition(block);
 
-#pragma warning disable CS0618 // MathUtilities is Obsolete
         // Clamp point to block bounds to avoid HitTestPoint failures
-        var x = MathUtilities.Clamp(point.X, 0, Math.Max(0, block.Bounds.Width));
-        var y = MathUtilities.Clamp(point.Y, 0, Math.Max(0, block.Bounds.Height));
-#pragma warning restore CS0618 // MathUtilities is Obsolete
+        var x = Math.Clamp(point.X, 0, Math.Max(0, block.Bounds.Width));
+        var y = Math.Clamp(point.Y, 0, Math.Max(0, block.Bounds.Height));
 
         return block.TextLayout.HitTestPoint(new Point(x, y)).TextPosition;
     }
