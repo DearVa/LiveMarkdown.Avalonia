@@ -34,6 +34,26 @@ public abstract class MarkdownNode
         new MarkdownNodeFactory<ThematicBreakBlockNode>(),
     ];
 
+    public static void Unregister(IMarkdownNodeFactory factory)
+    {
+        NodeFactoriesSet.Remove(factory);
+    }
+
+    public static void Unregister<TNode>() where TNode : MarkdownNode, new()
+    {
+        NodeFactoriesSet.RemoveWhere(fac => fac is MarkdownNodeFactory<TNode>);
+    }
+
+    public static void UnregisterWhere(Predicate<IMarkdownNodeFactory> predicate)
+    {
+        NodeFactoriesSet.RemoveWhere(predicate);
+    }
+
+    public static void Register<TNode>(IMarkdownNodeFactory<TNode> factory) where TNode : MarkdownNode, new()
+    {
+        NodeFactoriesSet.Add(factory);
+    }
+
     public static void Register<TNode>() where TNode : MarkdownNode, new()
     {
         NodeFactoriesSet.Add(new MarkdownNodeFactory<TNode>());
