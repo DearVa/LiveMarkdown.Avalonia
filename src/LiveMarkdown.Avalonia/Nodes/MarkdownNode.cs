@@ -1,4 +1,5 @@
-﻿using Markdig.Syntax;
+﻿using System.Collections.Immutable;
+using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
 // ReSharper disable InconsistentNaming
@@ -7,10 +8,7 @@ namespace LiveMarkdown.Avalonia;
 
 public abstract class MarkdownNode
 {
-    protected static IReadOnlyCollection<IMarkdownNodeFactory> NodeFactories => NodeFactoriesSet;
-
-    private readonly static HashSet<IMarkdownNodeFactory> NodeFactoriesSet =
-    [
+    protected static ImmutableHashSet<IMarkdownNodeFactory> NodeFactories { get; private set; } = ImmutableHashSet.Create<IMarkdownNodeFactory>(
         new MarkdownNodeFactory<AutolinkInlineNode>(),
         new MarkdownNodeFactory<CodeInlineNode>(),
         new MarkdownNodeFactory<ContainerInlineNode<ContainerInline>>(),
@@ -21,7 +19,6 @@ public abstract class MarkdownNode
         new MarkdownNodeFactory<LinkInlineNode>(),
         new MarkdownNodeFactory<LiteralInlineNode>(),
         new MarkdownNodeFactory<TaskListNode>(),
-
         new MarkdownNodeFactory<AlertBlockNode>(),
         new MarkdownNodeFactory<CodeBlockNode>(),
         new MarkdownNodeFactory<HeadingBlockNode>(),
@@ -31,32 +28,34 @@ public abstract class MarkdownNode
         new MarkdownNodeFactory<QuoteBlockNode>(),
         new MarkdownNodeFactory<TableCellNode>(),
         new MarkdownNodeFactory<TableNode>(),
-        new MarkdownNodeFactory<ThematicBreakBlockNode>(),
-    ];
+        new MarkdownNodeFactory<ThematicBreakBlockNode>()
+    );
 
-    public static void Unregister(IMarkdownNodeFactory factory)
-    {
-        NodeFactoriesSet.Remove(factory);
-    }
-
-    public static void Unregister<TNode>() where TNode : MarkdownNode, new()
-    {
-        NodeFactoriesSet.RemoveWhere(fac => fac is MarkdownNodeFactory<TNode>);
-    }
-
-    public static void UnregisterWhere(Predicate<IMarkdownNodeFactory> predicate)
-    {
-        NodeFactoriesSet.RemoveWhere(predicate);
-    }
-
-    public static void Register<TNode>(IMarkdownNodeFactory<TNode> factory) where TNode : MarkdownNode, new()
-    {
-        NodeFactoriesSet.Add(factory);
-    }
-
+    /// <summary>
+    /// Register a single node factory to the pipeline. This allows for custom node factories to be added to the pipeline, enabling support for custom Markdown syntax or behavior.
+    /// </summary>
+    /// <remarks>
+    /// If you want to register multiple node factories, consider using the <see cref="Edit"/> method to configure the pipeline in a single call, which can be more efficient and easier to read.
+    /// </remarks>
+    /// <typeparam name="TNode"></typeparam>
     public static void Register<TNode>() where TNode : MarkdownNode, new()
     {
-        NodeFactoriesSet.Add(new MarkdownNodeFactory<TNode>());
+        Edit(builder => builder.Register<TNode>());
+    }
+
+    /// <summary>
+    /// Edits the pipeline of node factories using the provided builder function.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// MarkdownNode.Edit(builder =&gt;
+    ///     builder.Register&lt;CustomNode&gt;().Unregister&lt;HeadingBlockNode&gt;());
+    /// </code>
+    /// </example>
+    /// <param name="builder">The function to configure the pipeline.</param>
+    public static void Edit(Func<MarkdownNodePipelineBuilder, MarkdownNodePipelineBuilder> builder)
+    {
+        NodeFactories = [..builder(new MarkdownNodePipelineBuilder([..NodeFactories])).RegisteredNodeFactories];
     }
 
     /// <summary>

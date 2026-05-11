@@ -4,7 +4,7 @@
 
 <h1>LiveMarkdown.Avalonia</h1>
 
-**High performance, real-time markdown renderer for AI/LLM**
+**High performance, real-time Markdown renderer for AI/LLM**
 
 <p align="center">
   <a href="https://deepwiki.com/DearVa/LiveMarkdown.Avalonia"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
@@ -156,6 +156,13 @@ using LiveMarkdown.Avalonia;
 
 MarkdownNode.Register<MathInlineNode>();
 MarkdownNode.Register<MathBlockNode>(); // This is also required for block-level LaTeX support, e.g. $$...$$
+
+// Also, you can use the following code to register/unregister multiple nodes at once if needed:
+MarkdownNode.Edit(builder => builder
+    .Register<MathInlineNode>()
+    .Register<MathBlockNode>()
+    // .Unregister<SomeBuiltInNode>() // You can even unregister some built-in nodes if you want to disable certain Markdown features
+);
 ```
 
 ### 5. (Optional) Enable SVG image rendering

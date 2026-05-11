@@ -1,9 +1,8 @@
+using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Logging;
 using Avalonia.Markup.Xaml;
-using LiveMarkdown.Avalonia.Demo.ViewModels;
 using LiveMarkdown.Avalonia.Demo.Views;
 
 namespace LiveMarkdown.Avalonia.Demo;
@@ -13,11 +12,13 @@ public partial class App : Application, ILogSink
     public override void Initialize()
     {
         Logger.Sink = this;
-        MarkdownNode.Register<MathInlineNode>();
-        MarkdownNode.Register<MathBlockNode>();
 
         MarkdownRenderer.ConfigurePipeline += x => x.UseMermaid();
-        MarkdownNode.Register<MermaidBlockNode>();
+        MarkdownNode.Edit(builder => builder
+            .Register<MathInlineNode>()
+            .Register<MathBlockNode>()
+            .Register<MermaidBlockNode>()
+        );
 
         AsyncImageLoader.DefaultDecoders =
         [
@@ -59,6 +60,6 @@ public partial class App : Application, ILogSink
         Log(level, area, source, formattedMessage);
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex(@"\{[^\}]+\}")]
-    private static partial System.Text.RegularExpressions.Regex LogTemplateRegex();
+    [GeneratedRegex(@"\{[^\}]+\}")]
+    private static partial Regex LogTemplateRegex();
 }
