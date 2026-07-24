@@ -118,7 +118,7 @@ public class BackslashMathBlockParser : BlockParser
             Span = new SourceSpan(processor.Line.Start, processor.Line.End)
         };
 
-        processor.Open(block);
+        processor.NewBlocks.Push(block);
         return AppendUntilClosingDelimiter(processor, block, processor.Start + 2);
     }
 
@@ -153,7 +153,8 @@ public class BackslashMathBlockParser : BlockParser
         }
 
         AppendLine(block, processor, start, line.End);
-        return BlockState.Continue;
+        block.UpdateSpanEnd(line.End);
+        return BlockState.ContinueDiscard;
     }
 
     private static int IndexOfClosingDelimiter(StringSlice line, int start)
