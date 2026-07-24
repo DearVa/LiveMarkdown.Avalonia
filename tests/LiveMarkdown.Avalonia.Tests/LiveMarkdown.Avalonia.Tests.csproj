@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LiveMarkdown.Avalonia\LiveMarkdown.Avalonia.csproj"/>
+    <ProjectReference Include="..\..\src\LiveMarkdown.Avalonia.Math\LiveMarkdown.Avalonia.Math.csproj"/>
     <ProjectReference Include="..\..\src\LiveMarkdown.Avalonia.Mermaid\LiveMarkdown.Avalonia.Mermaid.csproj"/>
   </ItemGroup>
 </Project>
