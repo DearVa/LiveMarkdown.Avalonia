@@ -526,9 +526,13 @@ public class MarkdownTextBlock : SelectableTextBlock
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
-        UpdatePointerOverLink(e.GetPosition(this));
+        var renderer = this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault();
+        if (renderer?.IsPointerSelectionDragging != true)
+        {
+            UpdatePointerOverLink(e.GetPosition(this));
+        }
 
-        if (this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault() is not null)
+        if (renderer is not null)
         {
             return;
         }

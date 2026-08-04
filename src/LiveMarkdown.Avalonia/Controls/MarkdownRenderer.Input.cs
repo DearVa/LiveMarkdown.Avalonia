@@ -75,8 +75,9 @@ public partial class MarkdownRenderer
     private enum PointerInteractionState
     {
         None,
+        Pressed,
         PendingLink,
-        Selecting,
+        DraggingSelection,
     }
 
     private PointerInteractionState pointerInteractionState;
@@ -157,7 +158,6 @@ public partial class MarkdownRenderer
                 BeginSelection(targetBlock, GetCaretPosition(targetBlock, e), e.ClickCount, e);
             }
 
-            e.Pointer.Capture(this);
             e.Handled = true;
             base.OnPointerPressed(e);
             return;
@@ -190,23 +190,45 @@ public partial class MarkdownRenderer
             return;
         }
 
-        UpdatePointerOverLink(e, activeScopeBlocks);
-
-        if (pointerInteractionState == PointerInteractionState.PendingLink)
+        if (pointerInteractionState == PointerInteractionState.DraggingSelection)
         {
-            if (HasExceededTapDistance(point.Position, interactionStartPoint, e.Pointer.Type))
-            {
-                BeginSelectionFromPending(e);
-            }
-            else
-            {
-                e.Handled = true;
-                base.OnPointerMoved(e);
-                return;
-            }
+            ClearPointerOverBlock();
+        }
+        else
+        {
+            UpdatePointerOverLink(e, activeScopeBlocks);
         }
 
-        if (pointerInteractionState != PointerInteractionState.Selecting)
+        switch (pointerInteractionState)
+        {
+            case PointerInteractionState.PendingLink:
+                if (!HasExceededTapDistance(point.Position, interactionStartPoint, e.Pointer.Type))
+                {
+                    e.Handled = true;
+                    base.OnPointerMoved(e);
+                    return;
+                }
+
+                BeginSelectionFromPending(e);
+                break;
+            case PointerInteractionState.Pressed:
+                if (!HasExceededTapDistance(point.Position, interactionStartPoint, e.Pointer.Type))
+                {
+                    e.Handled = true;
+                    base.OnPointerMoved(e);
+                    return;
+                }
+
+                BeginSelectionDrag(e);
+                break;
+            case PointerInteractionState.DraggingSelection:
+                break;
+            default:
+                base.OnPointerMoved(e);
+                return;
+        }
+
+        if (pointerInteractionState != PointerInteractionState.DraggingSelection)
         {
             base.OnPointerMoved(e);
             return;
@@ -246,16 +268,17 @@ public partial class MarkdownRenderer
             if (HasExceededTapDistance(releasePoint, interactionStartPoint, e.Pointer.Type))
             {
                 BeginSelectionFromPending(e);
-                EndPointerInteraction(e.Pointer);
+                UpdatePointerOverLinkAtPoint(releasePoint, activeScopeBlocks!);
+                EndPointerInteraction();
                 e.Handled = true;
                 base.OnPointerReleased(e);
                 return;
             }
 
-            var over = UpdatePointerOverLink(e, activeScopeBlocks!);
+            var over = UpdatePointerOverLinkAtPoint(releasePoint, activeScopeBlocks!);
             var shouldActivate = pendingBlock is not null && pending is not null && over.Block == pendingBlock && over.Link == pending;
 
-            EndPointerInteraction(e.Pointer);
+            EndPointerInteraction();
 
             if (shouldActivate && pending is not null)
             {
@@ -267,13 +290,20 @@ public partial class MarkdownRenderer
             return;
         }
 
-        if (pointerInteractionState == PointerInteractionState.Selecting)
+        if (pointerInteractionState == PointerInteractionState.Pressed &&
+            HasExceededTapDistance(e.GetCurrentPoint(this).Position, interactionStartPoint, e.Pointer.Type))
+        {
+            BeginSelectionDrag(e);
+        }
+
+        if (pointerInteractionState == PointerInteractionState.DraggingSelection)
         {
             TrackSelectionPointer(e);
             UpdateSelectionRangeFromPoint(e.GetPosition(this));
+            UpdatePointerOverLinkAtPoint(e.GetCurrentPoint(this).Position, activeScopeBlocks!);
         }
 
-        EndPointerInteraction(e.Pointer);
+        EndPointerInteraction();
         e.Handled = true;
 
         base.OnPointerReleased(e);
@@ -298,7 +328,7 @@ public partial class MarkdownRenderer
 
     private void BeginSelection(MarkdownTextBlock block, int position, int clickCount, PointerEventArgs pointerEvent)
     {
-        pointerInteractionState = PointerInteractionState.Selecting;
+        pointerInteractionState = PointerInteractionState.Pressed;
         UpdatePointerInteractionPseudoClasses();
 
         Focus();
@@ -310,7 +340,22 @@ public partial class MarkdownRenderer
         selectionAnchor = (block, position);
 
         HandleClickSelection(block, position, clickCount);
+    }
+
+    private void BeginSelectionDrag(PointerEventArgs e)
+    {
+        if (pointerInteractionState != PointerInteractionState.Pressed)
+        {
+            return;
+        }
+
+        pointerInteractionState = PointerInteractionState.DraggingSelection;
+        UpdatePointerInteractionPseudoClasses();
+
+        ClearPointerOverBlock();
         StartSelectionAutoScroll();
+        TrackSelectionPointer(e);
+        UpdateSelectionRangeFromPoint(e.GetPosition(this));
     }
 
     private void BeginSelectionFromPending(PointerEventArgs e)
@@ -322,11 +367,12 @@ public partial class MarkdownRenderer
 
         var position = pendingLinkPosition;
 
-        pointerInteractionState = PointerInteractionState.Selecting;
+        pointerInteractionState = PointerInteractionState.DraggingSelection;
         pendingLinkBlock = null;
         pendingLink = null;
         pendingLinkPosition = 0;
         UpdatePointerInteractionPseudoClasses();
+        ClearPointerOverBlock();
 
         Focus();
         ClearSelection(activeScopeBlocks);
@@ -339,6 +385,7 @@ public partial class MarkdownRenderer
 
         TrackSelectionPointer(e);
         StartSelectionAutoScroll();
+
         UpdateSelectionRangeFromPoint(e.GetPosition(this));
     }
 
@@ -346,9 +393,7 @@ public partial class MarkdownRenderer
     {
         var platformSettings = this.GetPlatformSettings() ?? Application.Current?.PlatformSettings;
         var tapSize = platformSettings?.GetTapSize(pointerType) ?? new Size(4, 4);
-        var tapRect = new Rect(start, new Size())
-            .Inflate(new Thickness(tapSize.Width, tapSize.Height));
-
+        var tapRect = new Rect(start, new Size()).Inflate(new Thickness(tapSize.Width, tapSize.Height));
         return !tapRect.ContainsExclusive(point);
     }
 
@@ -393,9 +438,8 @@ public partial class MarkdownRenderer
         contextMenuLink = null;
     }
 
-    private void EndPointerInteraction(IPointer? pointer = null)
+    private void EndPointerInteraction()
     {
-        var capturedPointer = interactionPointer;
         interactionPointer = null;
         pointerInteractionState = PointerInteractionState.None;
         pendingLinkBlock = null;
@@ -408,20 +452,17 @@ public partial class MarkdownRenderer
         lastSelectionTargetBlock = null;
         interactionStartPoint = default;
         selectionAutoScrollTimer?.Stop();
-        UpdatePointerInteractionPseudoClasses();
 
-        var pointerToRelease = pointer ?? capturedPointer;
-        if (Equals(pointerToRelease?.Captured, this))
-        {
-            pointerToRelease.Capture(null);
-        }
+        UpdatePointerInteractionPseudoClasses();
     }
 
     private void UpdatePointerInteractionPseudoClasses()
     {
         PseudoClasses.Set(":link-pending", pointerInteractionState == PointerInteractionState.PendingLink);
-        PseudoClasses.Set(":selecting", pointerInteractionState == PointerInteractionState.Selecting);
+        PseudoClasses.Set(":selecting", pointerInteractionState == PointerInteractionState.DraggingSelection);
     }
+
+    internal bool IsPointerSelectionDragging => pointerInteractionState == PointerInteractionState.DraggingSelection;
 
     private void SetPointerOverBlock(MarkdownTextBlock? block)
     {
@@ -442,6 +483,19 @@ public partial class MarkdownRenderer
     private (MarkdownTextBlock? Block, Link? Link) UpdatePointerOverLink(PointerEventArgs e, IReadOnlyList<MarkdownTextBlock> blocks)
     {
         var targetBlock = FindPointerTargetBlock(e, blocks, this, e.GetPosition(this));
+        return UpdatePointerOverLink(targetBlock, e.GetPosition((Visual?)targetBlock ?? this));
+    }
+
+    private (MarkdownTextBlock? Block, Link? Link) UpdatePointerOverLinkAtPoint(Point point, IReadOnlyList<MarkdownTextBlock> blocks)
+    {
+        var targetBlock = FindPointerTargetBlockAtPoint(blocks, point);
+        return UpdatePointerOverLink(
+            targetBlock,
+            targetBlock is null ? default : this.TranslatePoint(point, targetBlock) ?? default);
+    }
+
+    private (MarkdownTextBlock? Block, Link? Link) UpdatePointerOverLink(MarkdownTextBlock? targetBlock, Point point)
+    {
         SetPointerOverBlock(targetBlock);
 
         if (targetBlock is null)
@@ -449,7 +503,7 @@ public partial class MarkdownRenderer
             return default;
         }
 
-        return (targetBlock, targetBlock.UpdatePointerOverLink(e.GetPosition(targetBlock)));
+        return (targetBlock, targetBlock.UpdatePointerOverLink(point));
     }
 
     private static MarkdownTextBlock? FindPointerTargetBlock(
@@ -460,16 +514,36 @@ public partial class MarkdownRenderer
     {
         if (e.Source is Visual sourceVisual)
         {
-            for (var current = sourceVisual; current is not null; current = current.GetVisualParent())
-            {
-                if (current is MarkdownTextBlock block && blocks.Contains(block))
-                {
-                    return block;
-                }
-            }
+            var sourceBlock = FindPointerTargetBlockFromVisual(sourceVisual, blocks);
+            if (sourceBlock is not null) return sourceBlock;
         }
 
         return FindNearestBlockInList(blocks, relativeTo, point);
+    }
+
+    private MarkdownTextBlock? FindPointerTargetBlockAtPoint(IReadOnlyList<MarkdownTextBlock> blocks, Point point)
+    {
+        if (TopLevel.GetTopLevel(this) is not Visual topLevel ||
+            topLevel is not IInputElement inputRoot ||
+            this.TranslatePoint(point, topLevel) is not { } topLevelPoint)
+        {
+            return null;
+        }
+
+        return inputRoot.InputHitTest(topLevelPoint) is Visual sourceVisual ? FindPointerTargetBlockFromVisual(sourceVisual, blocks) : null;
+    }
+
+    private static MarkdownTextBlock? FindPointerTargetBlockFromVisual(Visual sourceVisual, IReadOnlyList<MarkdownTextBlock> blocks)
+    {
+        for (var current = sourceVisual; current is not null; current = current.GetVisualParent())
+        {
+            if (current is MarkdownTextBlock block && blocks.Contains(block))
+            {
+                return block;
+            }
+        }
+
+        return null;
     }
 
     private void StartSelectionAutoScroll()
@@ -567,7 +641,7 @@ public partial class MarkdownRenderer
 
     private static IEnumerable<ScrollViewer> GetAutoScrollViewers(Visual start)
     {
-        for (Visual? current = start; current is not null; current = current.GetVisualParent())
+        for (var current = start; current is not null; current = current.GetVisualParent())
         {
             if (current is ScrollViewer scrollViewer)
             {

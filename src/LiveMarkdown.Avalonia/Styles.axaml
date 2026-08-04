@@ -5,6 +5,7 @@
   xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:md="clr-namespace:LiveMarkdown.Avalonia">
   <Style Selector="md|MarkdownTextBlock">
+    <Setter Property="Background" Value="Transparent"/>
     <Setter Property="Cursor" Value="IBeam"/>
     <Setter Property="FontFamily" Value="Arial, 'Segoe UI', sans-serif"/>
     <Setter Property="FontSize" Value="{DynamicResource FontSizeM}"/>
@@ -121,6 +122,15 @@
 
     <Style Selector="^:selecting">
       <Setter Property="Cursor" Value="IBeam"/>
+
+      <!--
+        During implicit pointer capture the actual CursorElement is usually a
+        MarkdownTextBlock, not the Renderer. Keep the state styleable at the
+        element that Avalonia will resolve for the platform cursor.
+      -->
+      <Style Selector="^ md|MarkdownTextBlock">
+        <Setter Property="Cursor" Value="IBeam"/>
+      </Style>
     </Style>
 
     <Style Selector="^ StackPanel">
