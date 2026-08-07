@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
+using Avalonia.Media;
 using NUnit.Framework;
 
 namespace LiveMarkdown.Avalonia.Tests;
@@ -136,6 +137,60 @@ public class MarkdownSelectionTests
         scrollViewer.IsScrollChainingEnabled = false;
 
         Assert.That(scrollViewer.IsScrollChainingEnabled, Is.False);
+    }
+
+    [Test]
+    public void CodeInline_IsARealTextRunWithDirectTextCoordinates()
+    {
+        var textBlock = new MarkdownTextBlock();
+        textBlock.Inlines!.Add(new Run("before "));
+        textBlock.Inlines.Add(new CodeInline
+        {
+            Text = "code",
+            Background = Brushes.Gray,
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(2, 0),
+        });
+        textBlock.Inlines.Add(new Run(" after"));
+
+        Assert.That(textBlock.ActualText, Is.EqualTo("before code after"));
+        Assert.That(textBlock.EscapedTextLength, Is.EqualTo(textBlock.ActualText.Length));
+        Assert.That(textBlock.Inlines[1], Is.TypeOf<CodeInline>());
+    }
+
+    [Test]
+    public void TextHighlightRegistry_MergesOverlappingAndAdjacentRanges()
+    {
+        var registry = new TextHighlightRegistry();
+
+        registry.Set(
+            "search-results",
+            [
+                new TextHighlightRange(3, 4),
+                new TextHighlightRange(0, 3),
+                new TextHighlightRange(2, 3),
+                new TextHighlightRange(10, 2),
+            ]);
+
+        var highlight = registry.Values.Single();
+
+        Assert.That(highlight.Ranges, Is.EqualTo([
+            new TextHighlightRange(0, 7),
+            new TextHighlightRange(10, 2),
+        ]));
+    }
+
+    [Test]
+    public void HighlightStyles_InheritsThroughLogicalTree()
+    {
+        var styles = new TextHighlightStyles();
+        var root = new StackPanel();
+        var textBlock = new MarkdownTextBlock();
+
+        root.SetValue(MarkdownTextBlock.HighlightStylesProperty, styles);
+        root.Children.Add(textBlock);
+
+        Assert.That(textBlock.HighlightStyles, Is.SameAs(styles));
     }
 
     private static MarkdownTextBlock CreateMultilineTextBlock(string firstLine, string lastLine)

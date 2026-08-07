@@ -52,8 +52,8 @@ public class Link : Span
         {
             if (!SetAndRaise(HRefProperty, ref field, value)) return;
             UpdatePseudoClasses();
-            openCommand?.NotifyCanExecuteChanged();
-            copyCommand?.NotifyCanExecuteChanged();
+            _openCommand?.NotifyCanExecuteChanged();
+            _copyCommand?.NotifyCanExecuteChanged();
         }
     }
 
@@ -126,9 +126,9 @@ public class Link : Span
         base.OnDetachedFromLogicalTree(e);
     }
 
-    public ICommand OpenCommand => openCommand ??= new SimpleCommand(Open, () => HRef is not null);
+    public ICommand OpenCommand => _openCommand ??= new SimpleCommand(Open, () => HRef is not null);
 
-    private SimpleCommand? openCommand;
+    private SimpleCommand? _openCommand;
 
     /// <summary>
     /// Opens the link in the default web browser.
@@ -141,9 +141,9 @@ public class Link : Span
         await topLevel.Launcher.LaunchUriAsync(HRef);
     }
 
-    public ICommand CopyCommand => copyCommand ??= new SimpleCommand(Copy, () => HRef is not null);
+    public ICommand CopyCommand => _copyCommand ??= new SimpleCommand(Copy, () => HRef is not null);
 
-    private SimpleCommand? copyCommand;
+    private SimpleCommand? _copyCommand;
 
     /// <summary>
     /// Copies the link URL to the clipboard.

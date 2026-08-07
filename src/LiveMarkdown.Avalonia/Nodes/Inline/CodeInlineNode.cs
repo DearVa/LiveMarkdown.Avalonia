@@ -1,39 +1,27 @@
-﻿using Avalonia.Controls;
-using Avalonia.Controls.Documents;
-using Markdig.Syntax.Inlines;
 using Inline = Avalonia.Controls.Documents.Inline;
+using MarkdigCodeInline = Markdig.Syntax.Inlines.CodeInline;
 
 namespace LiveMarkdown.Avalonia;
 
 /// <summary>
 /// A node that represents a code inline.
 /// </summary>
-public class CodeInlineNode : InlineNode<CodeInline>
+public class CodeInlineNode : InlineNode<MarkdigCodeInline>
 {
-    public override Inline Inline => inlineUIContainer;
+    public override Inline Inline => codeInline;
 
-    private readonly InlineUIContainer inlineUIContainer;
-    private readonly MarkdownTextBlock textBlock;
-
-    public CodeInlineNode()
+    private readonly CodeInline codeInline = new()
     {
-        inlineUIContainer = new InlineUIContainer
-        {
-            Classes = { "Code" },
-            Child = new Border
-            {
-                Child = textBlock = new MarkdownTextBlock()
-            }
-        };
-    }
+        Classes = { "Code" }
+    };
 
     protected override bool UpdateCore(
         DocumentNode documentNode,
-        CodeInline code,
+        MarkdigCodeInline code,
         in ObservableStringBuilderChangedEventArgs change,
         CancellationToken cancellationToken)
     {
-        textBlock.Text = code.Content;
+        codeInline.Text = code.Content;
         return true;
     }
 }

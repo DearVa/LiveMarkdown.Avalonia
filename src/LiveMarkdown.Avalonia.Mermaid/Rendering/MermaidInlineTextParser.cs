@@ -3,6 +3,7 @@ using System.Buffers;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using MarkdigCodeInline = Markdig.Syntax.Inlines.CodeInline;
 
 namespace LiveMarkdown.Avalonia;
 
@@ -187,7 +188,7 @@ internal static class MermaidInlineTextParser
             case LiteralInline literal:
                 builder.Append(literal.Content.ToString(), style);
                 break;
-            case CodeInline code:
+            case MarkdigCodeInline code:
                 builder.Append(code.Content, style | MermaidTextStyle.Code);
                 break;
             case LineBreakInline:

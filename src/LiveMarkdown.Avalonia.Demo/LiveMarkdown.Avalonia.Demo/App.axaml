@@ -28,11 +28,9 @@
 
       <Setter Property="CodeBlockColorTheme" Value="{DynamicResource ColorTheme}"/>
 
-      <Style Selector="^ InlineUIContainer.Code">
-        <Style Selector="^ md|MarkdownTextBlock">
-          <Setter Property="Foreground" Value="{DynamicResource QuoteColor}"/>
-          <Setter Property="FontSize" Value="{DynamicResource FontSizeM}"/>
-        </Style>
+      <Style Selector="^ md|CodeInline">
+        <Setter Property="Foreground" Value="{DynamicResource QuoteColor}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSizeM}"/>
       </Style>
 
       <Style Selector="^ Border.QuoteBlock">

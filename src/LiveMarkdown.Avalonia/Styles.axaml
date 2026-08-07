@@ -295,20 +295,12 @@
       </Style>
     </Style>
 
-    <Style Selector="^ InlineUIContainer.Code">
-      <Style Selector="^ Border">
-        <Setter Property="ClipToBounds" Value="False"/>
-        <Setter Property="Margin" Value="2,0,2,0"/>
-        <Setter Property="Padding" Value="2,0"/>
-        <Setter Property="CornerRadius" Value="4"/>
-        <Setter Property="Background" Value="{DynamicResource SecondaryCardBackgroundColor}"/>
-      </Style>
-
-      <Style Selector="^ md|MarkdownTextBlock">
-        <Setter Property="Margin" Value="0,0,0,-4"/>
-        <Setter Property="Foreground" Value="{DynamicResource CodeInlineColor}"/>
-        <Setter Property="FontFamily" Value="Consolas, 'Courier New', monospace"/>
-      </Style>
+    <Style Selector="^ md|CodeInline">
+      <Setter Property="Background" Value="{DynamicResource SecondaryCardBackgroundColor}"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="2,0"/>
+      <Setter Property="Foreground" Value="{DynamicResource CodeInlineColor}"/>
+      <Setter Property="FontFamily" Value="Consolas, 'Courier New', monospace"/>
     </Style>
 
     <Style Selector="^ CheckBox.TaskList">
