@@ -30,7 +30,6 @@
 
       <Style Selector="^ md|CodeInline">
         <Setter Property="Foreground" Value="{DynamicResource QuoteColor}"/>
-        <Setter Property="FontSize" Value="{DynamicResource FontSizeM}"/>
       </Style>
 
       <Style Selector="^ Border.QuoteBlock">

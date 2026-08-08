@@ -10,6 +10,15 @@
     <vm:MainViewModel/>
   </Design.DataContext>
 
+  <UserControl.KeyBindings>
+    <KeyBinding
+      Command="{Binding OpenSearchCommand}"
+      Gesture="Ctrl+F"/>
+    <KeyBinding
+      Command="{Binding CloseSearchCommand}"
+      Gesture="Escape"/>
+  </UserControl.KeyBindings>
+
   <DockPanel
     x:Name="RootPanel"
     Background="{DynamicResource CardBackgroundColor}">
@@ -19,8 +28,7 @@
       IsExpanded="{Binding IsSidebarExpanded, Mode=TwoWay}"
       ItemsSource="{Binding NavigationItems}"
       SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-      ZIndex="1">
-    </shadui:NavigationBar>
+      ZIndex="1"/>
 
     <DockPanel LastChildFill="True">
       <!--  Toolbar Area  -->
@@ -44,9 +52,24 @@
               Maximum="100" Minimum="1"
               Value="{Binding RenderSpeed}"/>
             <Button
-              Classes="Secondary" VerticalAlignment="Center"
+              Classes="Ghost Compact Uniform" VerticalAlignment="Center"
               Command="{Binding ResetMarkdownCommand}"
-              Content="Reset"/>
+              ToolTip.Tip="Reset rendered Markdown">
+              <LucideIcon
+                Kind="RotateCcw" Size="16"/>
+            </Button>
+            <Rectangle
+              Width="1" Height="16"
+              Margin="4,0" VerticalAlignment="Center"
+              Fill="{DynamicResource BorderColor}"/>
+
+            <ToggleButton
+              Classes="Ghost Compact Uniform" VerticalAlignment="Center"
+              IsChecked="{Binding IsSearchOpen, Mode=TwoWay}"
+              ToolTip.Tip="Find in rendered text (Ctrl+F)">
+              <LucideIcon
+                Kind="Search" Size="16"/>
+            </ToggleButton>
 
             <Rectangle
               Width="1" Height="16"
@@ -97,7 +120,7 @@
           <md:MarkdownRenderer
             x:Name="MarkdownRenderer" Margin="12,12"
             CodeBlockColorTheme="{Binding SelectedColorTheme}"
-            LinkCommand="{Binding OpenUriCommand}"
+            LinkClick="HandleMarkdownRendererLinkClick"
             MarkdownBuilder="{Binding MarkdownBuilder}">
             <md:MarkdownRenderer.ContextFlyout>
               <MenuFlyout Placement="Bottom">
@@ -124,6 +147,80 @@
             </md:MarkdownRenderer.LinkContextMenu>
           </md:MarkdownRenderer>
         </ScrollViewer>
+
+        <Border
+          Grid.Row="0" Grid.Column="2"
+          Margin="0,8,12,0" Padding="8"
+          HorizontalAlignment="Right" VerticalAlignment="Top"
+          Background="{DynamicResource PopupBackgroundColor}"
+          BorderBrush="{DynamicResource BorderColor}"
+          BorderThickness="1" CornerRadius="12"
+          IsVisible="{Binding IsSearchOpen}"
+          ZIndex="2">
+          <Grid
+            ColumnDefinitions="260,Auto,Auto,Auto,Auto" ColumnSpacing="4">
+            <TextBox
+              x:Name="SearchTextBox" Grid.Column="0"
+              PlaceholderText="Find in rendered text"
+              Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+              <TextBox.KeyBindings>
+                <KeyBinding
+                  Command="{Binding PreviousSearchResultCommand}"
+                  Gesture="Shift+Enter"/>
+                <KeyBinding
+                  Command="{Binding NextSearchResultCommand}"
+                  Gesture="Enter"/>
+              </TextBox.KeyBindings>
+
+              <TextBox.InnerRightContent>
+                <UniformGrid Columns="2">
+                  <ToggleButton
+                    Classes="Ghost Compact Uniform" VerticalAlignment="Center"
+                    IsChecked="{Binding SearchWholeWord, Mode=TwoWay}"
+                    ToolTip.Tip="Whole word">
+                    <LucideIcon
+                      Kind="WholeWord" Size="14"/>
+                  </ToggleButton>
+                  <ToggleButton
+                    Classes="Ghost Compact Uniform" VerticalAlignment="Center"
+                    IsChecked="{Binding SearchMatchCase, Mode=TwoWay}"
+                    ToolTip.Tip="Match case">
+                    <LucideIcon
+                      Kind="CaseSensitive" Size="14"/>
+                  </ToggleButton>
+                </UniformGrid>
+              </TextBox.InnerRightContent>
+            </TextBox>
+            <TextBlock
+              Grid.Column="1" MinWidth="48"
+              VerticalAlignment="Center"
+              Text="{Binding SearchResultCountText}"
+              TextAlignment="Center"/>
+            <Button
+              Classes="Ghost Compact Uniform" Grid.Column="2"
+              Command="{Binding PreviousSearchResultCommand}"
+              IsEnabled="{Binding HasSearchMatches}"
+              ToolTip.Tip="Previous result (Shift+Enter)">
+              <LucideIcon
+                Kind="ChevronUp" Size="16"/>
+            </Button>
+            <Button
+              Classes="Ghost Compact Uniform" Grid.Column="3"
+              Command="{Binding NextSearchResultCommand}"
+              IsEnabled="{Binding HasSearchMatches}"
+              ToolTip.Tip="Next result (Enter)">
+              <LucideIcon
+                Kind="ChevronDown" Size="16"/>
+            </Button>
+            <Button
+              Classes="Ghost Compact Uniform" Grid.Column="4"
+              Command="{Binding CloseSearchCommand}"
+              ToolTip.Tip="Close (Esc)">
+              <LucideIcon
+                Kind="X" Size="16"/>
+            </Button>
+          </Grid>
+        </Border>
       </Grid>
     </DockPanel>
   </DockPanel>

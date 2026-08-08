@@ -25,6 +25,30 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsSidebarExpanded { get; set; } = true;
 
+    [ObservableProperty]
+    public partial bool IsSearchOpen { get; set; }
+
+    [ObservableProperty]
+    public partial string? SearchQuery { get; set; }
+
+    [ObservableProperty]
+    public partial bool SearchWholeWord { get; set; }
+
+    [ObservableProperty]
+    public partial bool SearchMatchCase { get; set; }
+
+    [ObservableProperty]
+    public partial int SearchCurrentIndex { get; private set; } = -1;
+
+    [ObservableProperty]
+    public partial int SearchMatchCount { get; private set; }
+
+    public string SearchResultCountText => SearchMatchCount == 0
+        ? "0/0"
+        : $"{SearchCurrentIndex + 1}/{SearchMatchCount}";
+
+    public bool HasSearchMatches => SearchMatchCount > 0;
+
     public string? SelectedMarkdown { get; private set; }
 
     public NavigationBarItem? SelectedItem
@@ -49,6 +73,23 @@ public partial class MainViewModel : ViewModelBase
 
     public event EventHandler<bool>? AutoScrollEnabledChanged;
 
+    /// <summary>
+    /// Raised when the search query or its matching options change.
+    /// The view handles the renderer-specific search operation.
+    /// </summary>
+    public event EventHandler? SearchChanged;
+
+    /// <summary>
+    /// Raised after a navigation command changes the selected search result.
+    /// The view owns highlighting and scrolling because those operations target controls.
+    /// </summary>
+    public event EventHandler? SearchNavigationRequested;
+
+    /// <summary>
+    /// Raised when an already-open search should regain focus, such as a repeated Ctrl+F.
+    /// </summary>
+    public event EventHandler? SearchFocusRequested;
+
     private CancellationTokenSource? cancellationTokenSource;
 
     public MainViewModel()
@@ -70,15 +111,6 @@ public partial class MainViewModel : ViewModelBase
         SelectedItem = NavigationItems.FirstOrDefault();
     }
 
-    [RelayCommand]
-    private static async Task OpenUriAsync(LinkClickedEventArgs args)
-    {
-        if (args.HRef is { IsAbsoluteUri: true, Scheme: "http" or "https" } url)
-        {
-            await LaunchUriAsync(url);
-        }
-    }
-
     private void ClearMarkdown()
     {
         RawMarkdownText = string.Empty;
@@ -93,6 +125,26 @@ public partial class MainViewModel : ViewModelBase
             _ = RenderMarkdownAsync(SelectedMarkdown, animate: true);
         }
     }
+
+    [RelayCommand]
+    private void OpenSearch()
+    {
+        var wasOpen = IsSearchOpen;
+        IsSearchOpen = true;
+        if (wasOpen)
+        {
+            SearchFocusRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    [RelayCommand]
+    private void CloseSearch() => IsSearchOpen = false;
+
+    [RelayCommand]
+    private void PreviousSearchResult() => MoveSearchResult(-1);
+
+    [RelayCommand]
+    private void NextSearchResult() => MoveSearchResult(1);
 
     [RelayCommand]
     private static void ToggleTheme()
@@ -163,24 +215,57 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private async static Task LaunchUriAsync(Uri uri)
+    internal void SetSearchMatchCount(int count, bool resetCurrentIndex = false)
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window })
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+
+        var currentIndex = count == 0
+            ? -1
+            : resetCurrentIndex
+                ? 0
+                : Math.Clamp(SearchCurrentIndex, 0, count - 1);
+
+        if (SearchCurrentIndex != currentIndex)
         {
-            var launcher = TopLevel.GetTopLevel(window)?.Launcher;
-            if (launcher is not null)
-            {
-                await launcher.LaunchUriAsync(uri);
-            }
+            SearchCurrentIndex = currentIndex;
         }
 
-        if (Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime { MainView: { } mainView })
+        if (SearchMatchCount != count)
         {
-            var launcher = TopLevel.GetTopLevel(mainView)?.Launcher;
-            if (launcher is not null)
-            {
-                await launcher.LaunchUriAsync(uri);
-            }
+            SearchMatchCount = count;
         }
+    }
+
+    partial void OnIsSearchOpenChanged(bool value)
+    {
+        if (!value && !string.IsNullOrEmpty(SearchQuery))
+        {
+            SearchQuery = string.Empty;
+        }
+    }
+
+    partial void OnSearchQueryChanged(string? value) => SearchChanged?.Invoke(this, EventArgs.Empty);
+
+    partial void OnSearchWholeWordChanged(bool value) => SearchChanged?.Invoke(this, EventArgs.Empty);
+
+    partial void OnSearchMatchCaseChanged(bool value) => SearchChanged?.Invoke(this, EventArgs.Empty);
+
+    partial void OnSearchCurrentIndexChanged(int value) => OnPropertyChanged(nameof(SearchResultCountText));
+
+    partial void OnSearchMatchCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(SearchResultCountText));
+        OnPropertyChanged(nameof(HasSearchMatches));
+    }
+
+    private void MoveSearchResult(int delta)
+    {
+        if (SearchMatchCount == 0)
+        {
+            return;
+        }
+
+        SearchCurrentIndex = (SearchCurrentIndex + delta + SearchMatchCount) % SearchMatchCount;
+        SearchNavigationRequested?.Invoke(this, EventArgs.Empty);
     }
 }
