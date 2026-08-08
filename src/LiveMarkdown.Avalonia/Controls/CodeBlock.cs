@@ -74,12 +74,29 @@ public class CodeBlock : TemplatedControl
     }
 
     /// <summary>
+    /// Defines the <see cref="CustomThemeName"/> property.
+    /// </summary>
+    public static readonly StyledProperty<string?> CustomThemeNameProperty =
+        AvaloniaProperty.Register<CodeBlock, string?>(nameof(CustomThemeName));
+
+    /// <summary>
+    /// Gets or sets the name of a theme registered with <see cref="SyntaxHighlighting.RegisterCustomTheme"/>.
+    /// When not set, <see cref="ColorTheme"/> is used.
+    /// </summary>
+    public string? CustomThemeName
+    {
+        get => GetValue(CustomThemeNameProperty);
+        set => SetValue(CustomThemeNameProperty, value);
+    }
+
+    /// <summary>
     /// Backing field for the <see cref="Code"/> property.
     /// </summary>
-    public static readonly DirectProperty<CodeBlock, string?> CodeProperty = AvaloniaProperty.RegisterDirect<CodeBlock, string?>(
-        nameof(Code),
-        o => o.Code,
-        (o, v) => o.Code = v);
+    public static readonly DirectProperty<CodeBlock, string?> CodeProperty =
+        AvaloniaProperty.RegisterDirect<CodeBlock, string?>(
+            nameof(Code),
+            o => o.Code,
+            (o, v) => o.Code = v);
 
     /// <summary>
     /// Defines the <see cref="IsCodeWrapped"/> property.
@@ -106,8 +123,8 @@ public class CodeBlock : TemplatedControl
 
     public static readonly DirectProperty<CodeBlock, ScrollBarVisibility> HorizontalScrollBarVisibilityProperty =
         AvaloniaProperty.RegisterDirect<CodeBlock, ScrollBarVisibility>(
-        nameof(HorizontalScrollBarVisibility),
-        o => o.HorizontalScrollBarVisibility);
+            nameof(HorizontalScrollBarVisibility),
+            o => o.HorizontalScrollBarVisibility);
 
     public ScrollBarVisibility HorizontalScrollBarVisibility =>
         IsCodeWrapped ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
@@ -216,6 +233,10 @@ public class CodeBlock : TemplatedControl
         {
             if (AutoSyntaxHighlight) Code = Code; // re-apply syntax highlighting
         }
+        else if (change.Property == CustomThemeNameProperty)
+        {
+            if (AutoSyntaxHighlight) Code = Code; // re-apply syntax highlighting
+        }
         else if (change.Property == AutoSyntaxHighlightProperty)
         {
             if (change.NewValue is true)
@@ -261,7 +282,7 @@ public class CodeBlock : TemplatedControl
         isApplyingSyntaxHighlighting = true;
         try
         {
-            SyntaxHighlighting.Create(Language!.ToLower()).FormatInlines(Inlines, ColorTheme);
+            SyntaxHighlighting.Create(Language.ToLower()).FormatInlines(Inlines, ColorTheme, CustomThemeName);
         }
         finally
         {

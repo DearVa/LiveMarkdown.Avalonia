@@ -104,6 +104,22 @@ public partial class MarkdownRenderer : Control
     }
 
     /// <summary>
+    /// Defines the <see cref="CodeBlockCustomThemeName"/> property.
+    /// </summary>
+    public static readonly StyledProperty<string?> CodeBlockCustomThemeNameProperty =
+        CodeBlock.CustomThemeNameProperty.AddOwner<MarkdownRenderer>();
+
+    /// <summary>
+    /// Gets or sets the registered custom theme name used for syntax highlighting in code blocks.
+    /// When not set, <see cref="CodeBlockColorTheme"/> is used.
+    /// </summary>
+    public string? CodeBlockCustomThemeName
+    {
+        get => GetValue(CodeBlockCustomThemeNameProperty);
+        set => SetValue(CodeBlockCustomThemeNameProperty, value);
+    }
+
+    /// <summary>
     /// Defines the <see cref="LinkContextMenu"/> property.
     /// </summary>
     public static readonly StyledProperty<ContextMenu?> LinkContextMenuProperty =
@@ -166,19 +182,16 @@ public partial class MarkdownRenderer : Control
         VerboseLogger = Logger.TryGet(LogEventLevel.Verbose, nameof(MarkdownRenderer));
 
         MarkdownTextBlock.LinkClickEvent.AddClassHandler<MarkdownRenderer>(HandleLinkClick);
-        RequestBringIntoViewEvent.AddClassHandler<MarkdownRenderer>(BringIntoViewRequested);
+        RequestBringIntoViewEvent.AddClassHandler<MarkdownRenderer>(HandleRequestBringIntoView);
     }
 
     private static void HandleLinkClick(MarkdownRenderer sender, LinkClickedEventArgs args)
     {
-        if (args.Handled ||
-            sender.LinkCommand is not { } linkCommand ||
-            !linkCommand.CanExecute(args)) return;
-
+        if (args.Handled || sender.LinkCommand is not { } linkCommand || !linkCommand.CanExecute(args)) return;
         linkCommand.Execute(args);
     }
 
-    private static void BringIntoViewRequested(MarkdownRenderer sender, RequestBringIntoViewEventArgs args)
+    private static void HandleRequestBringIntoView(MarkdownRenderer sender, RequestBringIntoViewEventArgs args)
     {
         // ignore requests from children
         args.Handled = true;

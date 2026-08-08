@@ -222,6 +222,7 @@
 
     <Style Selector="^ md|CodeBlock">
       <Setter Property="ColorTheme" Value="{Binding $parent[md:MarkdownRenderer].CodeBlockColorTheme}"/>
+      <Setter Property="CustomThemeName" Value="{Binding $parent[md:MarkdownRenderer].CodeBlockCustomThemeName}"/>
     </Style>
 
     <Style Selector="^ md|MarkdownTextBlock">
