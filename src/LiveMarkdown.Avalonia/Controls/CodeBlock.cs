@@ -282,7 +282,11 @@ public class CodeBlock : TemplatedControl
 
             if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
             {
-                MarkdownRenderer.VerboseLogger?.Log(this, "Clipboard is not available.");
+                if (MarkdownRenderer.VerboseLogger?.IsValid is true)
+                {
+                    MarkdownRenderer.VerboseLogger.Value.Log(this, "Clipboard is not available.");
+                }
+
                 return;
             }
 
@@ -290,7 +294,10 @@ public class CodeBlock : TemplatedControl
         }
         catch (Exception ex)
         {
-            MarkdownRenderer.VerboseLogger?.Log(this, "Failed to copy code to clipboard: {Message}", ex.Message);
+            if (MarkdownRenderer.VerboseLogger?.IsValid is true)
+            {
+                MarkdownRenderer.VerboseLogger.Value.Log(this, "Failed to copy code to clipboard: {Message}", ex.Message);
+            }
         }
     }
 }

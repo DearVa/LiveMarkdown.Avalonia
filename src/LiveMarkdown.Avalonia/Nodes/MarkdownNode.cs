@@ -85,12 +85,16 @@ public abstract class MarkdownNode
         var result = UpdateCore(documentNode, markdownObject, change, cancellationToken);
         span = markdownObject.Span;
 
-        MarkdownRenderer.VerboseLogger?.Log(
-            this,
-            "Updated {NodeName} {Result} {Span}",
-            markdownObject.GetType().Name,
-            result,
-            markdownObject.Span);
+        if (MarkdownRenderer.VerboseLogger?.IsValid is true)
+        {
+            MarkdownRenderer.VerboseLogger.Value.Log(
+                this,
+                "Updated {NodeName} {Result} {Span}",
+                markdownObject.GetType().Name,
+                result,
+                markdownObject.Span);
+        }
+
         return result;
     }
 

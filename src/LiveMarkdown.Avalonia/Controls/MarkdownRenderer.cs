@@ -204,16 +204,30 @@ public partial class MarkdownRenderer : Control
                 var markdown = MarkdownBuilder?.ToString() ?? string.Empty;
                 var time = DateTimeOffset.UtcNow;
                 var document = await Task.Run(() => Markdown.Parse(markdown, pipeline));
-                VerboseLogger?.Log(this, "Parse markdown in {TotalMicroseconds} ms.", (DateTimeOffset.UtcNow - time).TotalMilliseconds);
+
+                if (VerboseLogger?.IsValid is true)
+                {
+                    VerboseLogger.Value.Log(this, "Parse markdown in {TotalMicroseconds} ms.", (DateTimeOffset.UtcNow - time).TotalMilliseconds);
+                }
 
                 time = DateTimeOffset.UtcNow;
                 documentNode.Update(documentNode, document, e, CancellationToken.None);
-                VerboseLogger?.Log(this, "Render markdown in {TotalMicroseconds} ms.", (DateTimeOffset.UtcNow - time).TotalMilliseconds);
+
+                InvalidateTextBlockCache();
+                ApplyTextSearchCore();
+
+                if (VerboseLogger?.IsValid is true)
+                {
+                    VerboseLogger.Value.Log(this, "Render markdown in {TotalMicroseconds} ms.", (DateTimeOffset.UtcNow - time).TotalMilliseconds);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                await Console.Error.WriteAsync($"Error while rendering markdown: {ex.Message}");
+                if (VerboseLogger?.IsValid is true)
+                {
+                    VerboseLogger.Value.Log(this, "Error rendering markdown: {Message}", ex.Message);
+                }
             }
         }
 
