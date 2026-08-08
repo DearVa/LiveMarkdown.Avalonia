@@ -220,14 +220,8 @@
       </Style>
     </Style>
 
-    <Style Selector="^ md|CodeBlock">
-      <Setter Property="ColorTheme" Value="{Binding $parent[md:MarkdownRenderer].CodeBlockColorTheme}"/>
-      <Setter Property="CustomThemeName" Value="{Binding $parent[md:MarkdownRenderer].CodeBlockCustomThemeName}"/>
-    </Style>
-
     <Style Selector="^ md|MarkdownTextBlock">
       <Setter Property="Focusable" Value="False"/>
-      <Setter Property="LinkContextMenu" Value="{Binding $parent[md:MarkdownRenderer].LinkContextMenu}"/>
 
       <Style Selector="^:pointerover-link">
         <Setter Property="Cursor" Value="Hand"/>

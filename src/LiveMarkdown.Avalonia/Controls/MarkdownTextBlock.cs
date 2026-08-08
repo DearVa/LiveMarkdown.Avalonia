@@ -78,10 +78,13 @@ public class MarkdownTextBlock : SelectableTextBlock
     /// Defines the <see cref="LinkContextMenu"/> property.
     /// </summary>
     public static readonly StyledProperty<ContextMenu?> LinkContextMenuProperty =
-        AvaloniaProperty.Register<MarkdownTextBlock, ContextMenu?>(nameof(LinkContextMenu));
+        AvaloniaProperty.Register<MarkdownTextBlock, ContextMenu?>(
+            nameof(LinkContextMenu),
+            inherits: true);
 
     /// <summary>
     /// Context menu to show when right-clicking a Link.
+    /// The value is inherited from an ancestor, including <see cref="MarkdownRenderer.LinkContextMenu"/>.
     /// </summary>
     public ContextMenu? LinkContextMenu
     {

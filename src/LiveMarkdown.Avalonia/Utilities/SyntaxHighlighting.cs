@@ -57,7 +57,7 @@ public sealed class SyntaxHighlighting
     /// Registers or replaces a custom TextMate theme.
     /// Custom theme names are kept separate from the built-in <see cref="ThemeName"/> values.
     /// </summary>
-    /// <param name="name">The name used by <see cref="CodeBlock.CustomThemeName"/>.</param>
+    /// <param name="name">The name used by <see cref="CodeBlock.CustomColorTheme"/>.</param>
     /// <param name="theme">The raw TextMate theme.</param>
     /// <exception cref="ArgumentException">Thrown when the name is empty or conflicts with a built-in theme name.</exception>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="theme"/> is null.</exception>

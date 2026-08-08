@@ -43,7 +43,7 @@ public class SyntaxHighlightingTests
             var codeBlock = CreateCodeBlock(firstThemeName);
             Assert.That(GetForeground(codeBlock, "public"), Is.EqualTo(Color.Parse("#123456")));
 
-            codeBlock.CustomThemeName = secondThemeName;
+            codeBlock.CustomColorTheme = secondThemeName;
 
             Assert.That(GetForeground(codeBlock, "public"), Is.EqualTo(Color.Parse("#654321")));
         }
@@ -109,7 +109,7 @@ public class SyntaxHighlightingTests
         var codeBlock = new CodeBlock
         {
             Language = "csharp",
-            CustomThemeName = customThemeName,
+            CustomColorTheme = customThemeName,
             Code = "public class Demo {}"
         };
 

@@ -436,7 +436,7 @@ To set the theme globally for a `MarkdownRenderer` instance, use the `CodeBlockC
 <md:MarkdownRenderer CodeBlockColorTheme="LightPlus"/>
 ```
 
-#### Custom Theme
+#### Custom Code Color Theme
 
 Register an arbitrary TextMate `IRawTheme` once, then select it by name. Custom theme names are separate from the built-in `ThemeName` values:
 
@@ -445,10 +445,10 @@ SyntaxHighlighting.RegisterCustomTheme("MyApp.Dark", rawTheme);
 ```
 
 ```xml
-<md:MarkdownRenderer CodeBlockCustomThemeName="MyApp.Dark"/>
+<md:MarkdownRenderer CodeBlockCustomColorTheme="MyApp.Dark"/>
 ```
 
-When `CodeBlockCustomThemeName` is not set, `CodeBlockColorTheme` remains the fallback. An unregistered custom name also falls back to `CodeBlockColorTheme`.
+When `CodeBlockCustomColorTheme` is not set, `CodeBlockColorTheme` remains the fallback. An unregistered custom name also falls back to `CodeBlockColorTheme`.
 
 #### Per-CodeBlock Setting via Styles
 
@@ -457,6 +457,14 @@ You can also use Avalonia styles to set the theme for specific code blocks or ba
 ```xml
 <Style Selector="md|CodeBlock">
   <Setter Property="ColorTheme" Value="SolarizedDark"/>
+</Style>
+```
+
+or use registered custom theme names:
+
+```xml
+<Style Selector="md|CodeBlock">
+  <Setter Property="CustomColorTheme" Value="MyApp.Dark"/>
 </Style>
 ```
 
