@@ -39,6 +39,7 @@ updating, **especially when streaming large model outputs**.
 - 📜 **Code block syntax highlighting**: Supports multiple languages with [TextMateSharp](https://github.com/danipen/TextMateSharp)
 - 🖼️ **Image support**: Load online, local even `avares` images asynchronously
 - ✍️ **Selectable text**: Text can be selected across different Markdown elements
+- 🔎 **Text search and customizable highlights**: Search rendered text with case-sensitive and whole-word options, or provide a custom matcher and CSS-like highlight styles
 - 🧮 **LaTeX support**: Render mathematical expressions using [CSharpMath](https://github.com/verybadcat/CSharpMath)
 - 🖋️ **Mermaid diagram full support**: Render flowcharts, sequence diagrams, and more using [Mermaider](https://github.com/nullean/mermaider)
 - 🛠️ **Extensible Markdown pipeline**: Register custom Markdown nodes and extend the rendering pipeline
@@ -77,6 +78,7 @@ sponsors!
   - [x] Extensible Async image loading
   - [x] Extensible Image caching (Memory and File-based, with HTTP freshness support)
 - [x] Selectable text across elements
+- [x] Text search and customizable highlights
 - [x] LaTeX support
 - [ ] HTML support
 - [x] Mermaid diagram support
@@ -161,7 +163,77 @@ Note that `MarkdownBuilder` is designed for efficient updates, but is NOT thread
 
 If you want to load local images with relative paths, you can set the `MarkdownRenderer.ImageBasePath` property.
 
-### 4. (Optional) Enable LaTeX rendering
+### 4. Search text and customize highlights
+
+`MarkdownRenderer.ApplyTextSearch` searches the text of the Markdown text blocks owned by the renderer and paints the
+matching ranges without changing text shaping or line breaking. The convenience overload supports literal matching,
+case sensitivity, and whole-word matching:
+
+```csharp
+using Avalonia;
+using Avalonia.Media;
+using LiveMarkdown.Avalonia;
+
+var highlightStyles = new TextHighlightStyles();
+highlightStyles.Set(
+    MarkdownRenderer.DefaultTextSearchHighlightName,
+    new TextHighlightStyle
+    {
+        Background = new SolidColorBrush(Color.FromArgb(96, 255, 193, 7)),
+        Foreground = Brushes.Black,
+        CornerRadius = new CornerRadius(2),
+        Padding = new Thickness(1, 0),
+    });
+
+// HighlightStyles is inherited by the MarkdownTextBlock controls inside the renderer.
+MarkdownTextBlock.SetHighlightStyles(MarkdownRenderer, highlightStyles);
+
+var matches = MarkdownRenderer.ApplyTextSearch(
+    "render",
+    TextSearchOptions.WholeWord,
+    priority: 0);
+
+foreach (var match in matches)
+{
+    // match.Block is the concrete MarkdownTextBlock containing the match.
+    // match.Range uses UTF-16 offsets local to that block.
+}
+
+// Remove the active search and its ranges.
+MarkdownRenderer.ClearTextSearch();
+```
+
+For full control over matching, pass a `TextSearchMatcher`. The matcher receives the concrete text block and its local
+layout text, and returns `TextHighlightRange` values in UTF-16 coordinates:
+
+```csharp
+using System;
+
+var matches = MarkdownRenderer.ApplyTextSearch(
+    static (_, text) =>
+    {
+        var index = text.IndexOf("TODO", StringComparison.Ordinal);
+        return index >= 0
+            ? [new TextHighlightRange(index, "TODO".Length)]
+            : [];
+    },
+    highlightName: "todo",
+    priority: 1);
+```
+
+Named ranges can also be assigned directly to a `MarkdownTextBlock`:
+
+```csharp
+block.Highlights.Set(
+    "current-match",
+    [new TextHighlightRange(start: 12, length: 6)],
+    priority: 10);
+```
+
+Use `TextHighlightStyles.Set` to define the visual style for each name. A style can specify `Background`, `Foreground`,
+`CornerRadius`, and `Padding`; the registry priority determines which overlapping highlight wins.
+
+### 5. (Optional) Enable LaTeX rendering
 
 LaTeX is supported via the `LiveMarkdown.Avalonia.Math` package. You can install it via NuGet:
 
@@ -185,7 +257,7 @@ MarkdownNode.Edit(builder => builder
 );
 ```
 
-### 5. (Optional) Enable SVG image rendering
+### 6. (Optional) Enable SVG image rendering
 
 SVG rendering is supported via the `LiveMarkdown.Avalonia.Svg` or `LiveMarkdown.Avalonia.Svg.Skia` package. You can install one of them via NuGet:
 
@@ -217,7 +289,7 @@ AsyncImageLoader.DefaultDecoders =
 
 You can also set the `AsyncImageLoader.Decoders` property on a per-renderer basis if you want different renderers to use different decoders.
 
-### 6. (Optional) Enable Mermaid diagram rendering
+### 7. (Optional) Enable Mermaid diagram rendering
 
 Mermaid diagram rendering is supported via the `LiveMarkdown.Avalonia.Mermaid` package. You can install it via NuGet:
 
@@ -282,7 +354,7 @@ Current native synchronization scope:
 - Sequence diagrams use Mermaider's sequence layout, which currently does not accept `RenderOptions`.
 - Colors, fonts, and Mermaid theme variables remain Avalonia style concerns in native rendering.
 
-### 7. (Optional) Configure Image cache
+### 8. (Optional) Configure Image cache
 
 `AsyncImageLoader` uses the in-memory `RamBasedAsyncImageLoaderCache.Shared` by default.
 If you want persistent caching for remote images, enable the file-backed cache explicitly:
