@@ -9,6 +9,11 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public readonly record struct TextHighlightRange
 {
+    /// <summary>
+    /// Initializes a text range and validates its bounds.
+    /// </summary>
+    /// <param name="start">The zero-based UTF-16 start index.</param>
+    /// <param name="length">The non-negative UTF-16 length.</param>
     public TextHighlightRange(int start, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(start);
@@ -23,16 +28,27 @@ public readonly record struct TextHighlightRange
         Length = length;
     }
 
+    /// <summary>
+    /// Gets the zero-based UTF-16 start index.
+    /// </summary>
     public int Start { get; }
 
+    /// <summary>
+    /// Gets the UTF-16 length of the range.
+    /// </summary>
     public int Length { get; }
 
+    /// <summary>
+    /// Gets the exclusive UTF-16 end index.
+    /// </summary>
     public int End => Start + Length;
 }
 
 /// <summary>
 /// Identifies one search match in a rendered Markdown tree.
 /// </summary>
+/// <param name="Block">The text block containing the match.</param>
+/// <param name="Range">The local UTF-16 range of the match.</param>
 public readonly record struct TextHighlightMatch(MarkdownTextBlock Block, TextHighlightRange Range);
 
 /// <summary>
@@ -48,10 +64,19 @@ public sealed class TextHighlight
         Order = order;
     }
 
+    /// <summary>
+    /// Gets the registry name of the highlight.
+    /// </summary>
     public string Name { get; }
 
+    /// <summary>
+    /// Gets the normalized, non-overlapping ranges in the highlight.
+    /// </summary>
     public IReadOnlyList<TextHighlightRange> Ranges { get; }
 
+    /// <summary>
+    /// Gets the priority used when overlapping highlights are painted.
+    /// </summary>
     public int Priority { get; }
 
     internal long Order { get; }
@@ -66,18 +91,39 @@ public sealed class TextHighlightRegistry
     private TextHighlight[]? orderedHighlights;
     private long nextOrder;
 
+    /// <summary>
+    /// Raised after a named highlight is added, replaced, or removed.
+    /// </summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Gets the number of named highlights in the registry.
+    /// </summary>
     public int Count => highlights.Count;
 
+    /// <summary>
+    /// Gets the named highlights currently registered.
+    /// </summary>
     public IReadOnlyCollection<TextHighlight> Values => highlights.Values;
 
+    /// <summary>
+    /// Tries to retrieve a named highlight.
+    /// </summary>
+    /// <param name="name">The highlight name.</param>
+    /// <param name="highlight">The matching highlight, when found.</param>
+    /// <returns><see langword="true"/> when the name is registered.</returns>
     public bool TryGetValue(string name, [NotNullWhen(true)] out TextHighlight? highlight)
     {
         ArgumentNullException.ThrowIfNull(name);
         return highlights.TryGetValue(name, out highlight);
     }
 
+    /// <summary>
+    /// Adds or replaces a named highlight and merges overlapping ranges.
+    /// </summary>
+    /// <param name="name">The highlight name.</param>
+    /// <param name="ranges">The ranges in the block's local UTF-16 coordinates.</param>
+    /// <param name="priority">The paint priority; lower values are painted first.</param>
     public void Set(string name, IEnumerable<TextHighlightRange> ranges, int priority = 0)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -89,6 +135,11 @@ public sealed class TextHighlightRegistry
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Removes a named highlight.
+    /// </summary>
+    /// <param name="name">The highlight name.</param>
+    /// <returns><see langword="true"/> when a highlight was removed.</returns>
     public bool Remove(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -103,6 +154,9 @@ public sealed class TextHighlightRegistry
         return true;
     }
 
+    /// <summary>
+    /// Removes all named highlights from the registry.
+    /// </summary>
     public void Clear()
     {
         if (highlights.Count == 0)
@@ -168,12 +222,24 @@ public sealed class TextHighlightRegistry
 /// </summary>
 public sealed record TextHighlightStyle
 {
+    /// <summary>
+    /// Gets or initializes the background brush used for the highlight.
+    /// </summary>
     public IBrush? Background { get; init; }
 
+    /// <summary>
+    /// Gets or initializes the foreground brush used for the highlight.
+    /// </summary>
     public IBrush? Foreground { get; init; }
 
+    /// <summary>
+    /// Gets or initializes the corner radius of the background paint.
+    /// </summary>
     public CornerRadius CornerRadius { get; init; }
 
+    /// <summary>
+    /// Gets or initializes the padding applied to the background paint.
+    /// </summary>
     public Thickness Padding { get; init; }
 }
 
@@ -184,10 +250,24 @@ public sealed class TextHighlightStyles
 {
     private readonly Dictionary<string, TextHighlightStyle> styles = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Raised after a named style is added, replaced, or removed.
+    /// </summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Tries to retrieve a named highlight style.
+    /// </summary>
+    /// <param name="name">The style name.</param>
+    /// <param name="style">The matching style, when found.</param>
+    /// <returns><see langword="true"/> when the name is registered.</returns>
     public bool TryGetValue(string name, out TextHighlightStyle style) => styles.TryGetValue(name, out style!);
 
+    /// <summary>
+    /// Adds or replaces a named highlight style.
+    /// </summary>
+    /// <param name="name">The style name.</param>
+    /// <param name="style">The paint-only style to associate with the name.</param>
     public void Set(string name, TextHighlightStyle style)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
@@ -197,6 +277,11 @@ public sealed class TextHighlightStyles
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Removes a named highlight style.
+    /// </summary>
+    /// <param name="name">The style name.</param>
+    /// <returns><see langword="true"/> when a style was removed.</returns>
     public bool Remove(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -210,6 +295,9 @@ public sealed class TextHighlightStyles
         return true;
     }
 
+    /// <summary>
+    /// Removes all named highlight styles.
+    /// </summary>
     public void Clear()
     {
         if (styles.Count == 0)

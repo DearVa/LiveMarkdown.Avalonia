@@ -9,6 +9,7 @@ namespace LiveMarkdown.Avalonia;
 public class EmphasisInlineNode() : ContainerInlineNode<EmphasisInline>("Emphasis")
 {
 #pragma warning disable CS8620 // see https://github.com/dotnet/roslyn/issues/80024
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         EmphasisInline emphasisInline,

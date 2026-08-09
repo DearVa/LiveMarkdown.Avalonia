@@ -5,6 +5,9 @@
 /// </summary>
 public readonly ref struct MarkdownNodePipelineBuilder
 {
+    /// <summary>
+    /// Gets the mutable set of node factories currently registered in the pipeline.
+    /// </summary>
     public HashSet<IMarkdownNodeFactory> RegisteredNodeFactories { get; }
 
     internal MarkdownNodePipelineBuilder(HashSet<IMarkdownNodeFactory> registeredNodeFactories)

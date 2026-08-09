@@ -13,6 +13,10 @@ using TextMateSharp.Grammars;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Renders a Markdown document into an Avalonia visual tree and coordinates selection,
+/// link interaction, text search, and asynchronous document updates.
+/// </summary>
 [PseudoClasses(":link-pending", ":selecting")]
 public partial class MarkdownRenderer : Control
 {
@@ -155,6 +159,9 @@ public partial class MarkdownRenderer : Control
         remove => RemoveHandler(MarkdownTextBlock.LinkClickEvent, value);
     }
 
+    /// <summary>
+    /// Defines the <see cref="LinkCommand"/> property.
+    /// </summary>
     public static readonly StyledProperty<ICommand?> LinkCommandProperty =
         AvaloniaProperty.Register<MarkdownRenderer, ICommand?>(nameof(LinkCommand));
 
@@ -211,6 +218,9 @@ public partial class MarkdownRenderer : Control
         args.Handled = true;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MarkdownRenderer"/> class.
+    /// </summary>
     public MarkdownRenderer()
     {
         documentNode = new DocumentNode(this);
@@ -220,12 +230,14 @@ public partial class MarkdownRenderer : Control
         AddHandler(KeyDownEvent, HandleKeyDown);
     }
 
+    /// <inheritdoc/>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
         EnsureRenderLoopStarted();
     }
 
+    /// <inheritdoc/>
     protected override void ArrangeCore(Rect finalRect)
     {
         // ArrangeCore must remain synchronous.  Avalonia marks an arrange as valid

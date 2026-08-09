@@ -6,10 +6,21 @@ using Markdig.Syntax.Inlines;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Base class for nodes that synchronize Markdig objects with Avalonia controls or inlines.
+/// </summary>
 public abstract class MarkdownNode
 {
+    /// <summary>
+    /// Configures the registered Markdown node factories and returns the updated builder.
+    /// </summary>
+    /// <param name="builder">The pipeline builder to edit.</param>
+    /// <returns>The same builder instance for fluent configuration.</returns>
     public delegate MarkdownNodePipelineBuilder MarkdownNodePipelineBuilderDelegate(MarkdownNodePipelineBuilder builder);
 
+    /// <summary>
+    /// Gets or sets the factories currently used to create Markdown nodes.
+    /// </summary>
     protected static ImmutableHashSet<IMarkdownNodeFactory> NodeFactories { get; private set; } = ImmutableHashSet.Create<IMarkdownNodeFactory>(
         new MarkdownNodeFactory<AutolinkInlineNode>(),
         new MarkdownNodeFactory<CodeInlineNode>(),
@@ -65,11 +76,28 @@ public abstract class MarkdownNode
     /// </summary>
     private SourceSpan span;
 
+    /// <summary>
+    /// Determines whether a Markdown object must be synchronized for a source change.
+    /// </summary>
+    /// <param name="markdownObject">The current Markdown object.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <returns><see langword="true"/> when the node's source span or content is affected.</returns>
     protected virtual bool IsDirty(MarkdownObject markdownObject, in ObservableStringBuilderChangedEventArgs change)
     {
         return !span.Equals(markdownObject.Span) || span.End >= change.StartIndex && change.StartIndex + change.Length > span.Start;
     }
 
+    /// <summary>
+    /// Updates this node from a Markdown object when the source change affects it.
+    /// </summary>
+    /// <param name="documentNode">The root document node.</param>
+    /// <param name="markdownObject">The current Markdown object.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns>
+    /// <see langword="null"/> when the node is unaffected; otherwise the result of the update,
+    /// where <see langword="false"/> indicates that the node should be removed.
+    /// </returns>
     public bool? Update(
         DocumentNode documentNode,
         MarkdownObject markdownObject,

@@ -8,12 +8,22 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public class InlinesNode<TInline> : InlineNode<TInline> where TInline : Inline
 {
+    /// <summary>
+    /// Gets the Avalonia inline represented by this node.
+    /// </summary>
     public override global::Avalonia.Controls.Documents.Inline Inline { get; }
 
+    /// <summary>
+    /// Gets the collection that contains child Avalonia inlines.
+    /// </summary>
     public InlineCollection Inlines { get; }
 
     private readonly MarkdownRenderer.InlinesProxy proxy;
 
+    /// <summary>
+    /// Initializes a node backed by the supplied span.
+    /// </summary>
+    /// <param name="span">The Avalonia span to synchronize.</param>
     public InlinesNode(Span span) : this(span, span.Inlines) { }
 
     private InlinesNode(global::Avalonia.Controls.Documents.Inline inline, InlineCollection inlines)
@@ -23,6 +33,14 @@ public class InlinesNode<TInline> : InlineNode<TInline> where TInline : Inline
         proxy = new MarkdownRenderer.InlinesProxy(inlines);
     }
 
+    /// <summary>
+    /// Synchronizes child inline nodes with the Markdig inline container.
+    /// </summary>
+    /// <param name="documentNode">The owning document node.</param>
+    /// <param name="inlines">The Markdig inline container.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns><see langword="true"/> when at least one inline was processed.</returns>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         TInline inlines,

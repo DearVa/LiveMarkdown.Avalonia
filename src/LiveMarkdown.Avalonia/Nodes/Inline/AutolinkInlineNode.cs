@@ -4,12 +4,21 @@ using Inline = Avalonia.Controls.Documents.Inline;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Renders an automatic Markdown link such as <c>&lt;https://example.com&gt;</c>.
+/// </summary>
 public sealed class AutolinkInlineNode : InlineNode<AutolinkInline>
 {
+    /// <summary>
+    /// Gets the link inline rendered by this node.
+    /// </summary>
     public override Inline Inline { get; }
 
     private readonly Link link;
 
+    /// <summary>
+    /// Initializes a new automatic-link node.
+    /// </summary>
     public AutolinkInlineNode()
     {
         Inline = link = new Link
@@ -18,6 +27,7 @@ public sealed class AutolinkInlineNode : InlineNode<AutolinkInline>
         };
     }
 
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         AutolinkInline autolink,

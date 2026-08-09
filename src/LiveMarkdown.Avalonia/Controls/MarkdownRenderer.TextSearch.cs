@@ -9,8 +9,19 @@ namespace LiveMarkdown.Avalonia;
 [Flags]
 public enum TextSearchOptions
 {
+    /// <summary>
+    /// Performs a case-insensitive, substring search.
+    /// </summary>
     None = 0,
+
+    /// <summary>
+    /// Compares query text using ordinal case-sensitive comparison.
+    /// </summary>
     MatchCase = 1 << 0,
+
+    /// <summary>
+    /// Restricts matches to whole words.
+    /// </summary>
     WholeWord = 1 << 1,
 }
 

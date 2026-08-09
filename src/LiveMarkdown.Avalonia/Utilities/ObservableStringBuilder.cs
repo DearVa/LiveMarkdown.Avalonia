@@ -61,16 +61,27 @@ public class ObservableStringBuilder : INotifyPropertyChanged
 
     private readonly StringBuilder stringBuilder;
 
+    /// <summary>
+    /// Initializes an empty string builder.
+    /// </summary>
     public ObservableStringBuilder()
     {
         stringBuilder = new StringBuilder();
     }
 
+    /// <summary>
+    /// Initializes an empty string builder with the specified initial capacity.
+    /// </summary>
+    /// <param name="capacity">The initial capacity.</param>
     public ObservableStringBuilder(int capacity)
     {
         stringBuilder = new StringBuilder(capacity);
     }
 
+    /// <summary>
+    /// Initializes a string builder with optional initial content.
+    /// </summary>
+    /// <param name="initialValue">The initial content, or <see langword="null"/>.</param>
     public ObservableStringBuilder(string? initialValue) : this(initialValue?.Length ?? 0)
     {
         if (!string.IsNullOrEmpty(initialValue))
@@ -141,12 +152,17 @@ public class ObservableStringBuilder : INotifyPropertyChanged
         return this;
     }
 
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override string ToString()
     {
         return stringBuilder.ToString();
     }
 
+    /// <summary>
+    /// Raises the <see cref="PropertyChanged"/> event for a property.
+    /// </summary>
+    /// <param name="propertyName">The changed property name.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {

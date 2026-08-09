@@ -7,8 +7,15 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public sealed class DocumentNode : ContainerBlockNode<MarkdownDocument>
 {
+    /// <summary>
+    /// Gets the renderer that owns the Markdown document.
+    /// </summary>
     public MarkdownRenderer Owner { get; }
 
+    /// <summary>
+    /// Initializes a document node for the specified renderer.
+    /// </summary>
+    /// <param name="owner">The owning renderer.</param>
     public DocumentNode(MarkdownRenderer owner)
     {
         Owner = owner;
@@ -23,6 +30,14 @@ public sealed class DocumentNode : ContainerBlockNode<MarkdownDocument>
     /// <returns></returns>
     protected override bool IsDirty(MarkdownObject markdownObject, in ObservableStringBuilderChangedEventArgs change) => true;
 
+    /// <summary>
+    /// Updates the document's child block nodes and clears them when the document is empty.
+    /// </summary>
+    /// <param name="documentNode">The root document node.</param>
+    /// <param name="markdownObject">The parsed Markdown document.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns><see langword="true"/> when the document contains renderable blocks.</returns>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         MarkdownDocument markdownObject,

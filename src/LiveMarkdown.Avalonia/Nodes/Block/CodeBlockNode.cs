@@ -4,12 +4,21 @@ using Markdig.Syntax;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Renders a Markdig code block through the <see cref="CodeBlock"/> control.
+/// </summary>
 public class CodeBlockNode : BlockNode<Markdig.Syntax.CodeBlock>
 {
+    /// <summary>
+    /// Gets the code block control.
+    /// </summary>
     public override Control Control { get; }
 
     private readonly CodeBlock _codeBlock;
 
+    /// <summary>
+    /// Initializes a code block node and its control.
+    /// </summary>
     public CodeBlockNode()
     {
         Control = _codeBlock = new CodeBlock
@@ -19,6 +28,7 @@ public class CodeBlockNode : BlockNode<Markdig.Syntax.CodeBlock>
         _codeBlock.ApplyTemplate(); // Ensure the template is applied to initialize the CodeTextBlock
     }
 
+    /// <inheritdoc/>
     protected override bool MatchesBlock(Markdig.Syntax.CodeBlock block)
     {
         var blockType = block.GetType();
@@ -30,6 +40,14 @@ public class CodeBlockNode : BlockNode<Markdig.Syntax.CodeBlock>
         return !HasMoreSpecificBlockNodeFactory(blockType, typeof(Markdig.Syntax.CodeBlock));
     }
 
+    /// <summary>
+    /// Updates code lines, language metadata, and syntax highlighting.
+    /// </summary>
+    /// <param name="documentNode">The owning document node.</param>
+    /// <param name="codeBlock">The Markdig code block.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns><see langword="true"/> when the code block remains valid.</returns>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         Markdig.Syntax.CodeBlock codeBlock,

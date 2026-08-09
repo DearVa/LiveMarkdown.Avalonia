@@ -8,6 +8,9 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public class CodeInlineNode : InlineNode<MarkdigCodeInline>
 {
+    /// <summary>
+    /// Gets the code inline rendered by this node.
+    /// </summary>
     public override Inline Inline => codeInline;
 
     private readonly CodeInline codeInline = new()
@@ -15,6 +18,7 @@ public class CodeInlineNode : InlineNode<MarkdigCodeInline>
         Classes = { "Code" }
     };
 
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         MarkdigCodeInline code,

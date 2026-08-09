@@ -231,5 +231,8 @@ public class AsyncImageLoaderCacheMetadata
     public void SetContentType(string? value) => SetProperty(ContentTypeProperty, value);
 }
 
+/// <summary>
+/// Provides source-generated JSON metadata for <see cref="AsyncImageLoaderCacheMetadata"/>.
+/// </summary>
 [JsonSerializable(typeof(AsyncImageLoaderCacheMetadata))]
 public sealed partial class AsyncImageLoaderCacheMetadataJsonSerializerContext : JsonSerializerContext;

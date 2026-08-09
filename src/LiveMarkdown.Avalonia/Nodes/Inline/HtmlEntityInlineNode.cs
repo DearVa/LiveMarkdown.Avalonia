@@ -4,12 +4,21 @@ using Inline = Avalonia.Controls.Documents.Inline;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Renders an HTML character entity as its decoded text.
+/// </summary>
 public class HtmlEntityInlineNode : InlineNode<HtmlEntityInline>
 {
+    /// <summary>
+    /// Gets the run that displays the decoded entity.
+    /// </summary>
     public override Inline Inline { get; }
 
     private readonly Run run;
 
+    /// <summary>
+    /// Initializes a new HTML entity inline node.
+    /// </summary>
     public HtmlEntityInlineNode()
     {
         Inline = run = new Run
@@ -18,6 +27,7 @@ public class HtmlEntityInlineNode : InlineNode<HtmlEntityInline>
         };
     }
 
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         HtmlEntityInline htmlEntity,

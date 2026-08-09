@@ -4,8 +4,15 @@ using Markdig.Syntax;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Base class for block nodes that contain and render child block nodes.
+/// </summary>
+/// <typeparam name="TContainerBlock">The Markdig container block type.</typeparam>
 public abstract class ContainerBlockNode<TContainerBlock> : BlockNode<TContainerBlock> where TContainerBlock : ContainerBlock
 {
+    /// <summary>
+    /// Gets the child container control.
+    /// </summary>
     public override Control Control => container;
 
     /// <summary>
@@ -18,6 +25,9 @@ public abstract class ContainerBlockNode<TContainerBlock> : BlockNode<TContainer
     /// </summary>
     protected readonly MarkdownRenderer.BlocksProxy proxy;
 
+    /// <summary>
+    /// Initializes the child control collection and synchronization proxy.
+    /// </summary>
     protected ContainerBlockNode()
     {
         container = new StackPanel
@@ -27,6 +37,14 @@ public abstract class ContainerBlockNode<TContainerBlock> : BlockNode<TContainer
         proxy = new MarkdownRenderer.BlocksProxy(container.Children);
     }
 
+    /// <summary>
+    /// Synchronizes child block nodes with the Markdig container.
+    /// </summary>
+    /// <param name="documentNode">The owning document node.</param>
+    /// <param name="containerBlock">The Markdig container block.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns><see langword="true"/> when the container remains valid.</returns>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         TContainerBlock containerBlock,

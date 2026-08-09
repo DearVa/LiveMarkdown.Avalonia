@@ -14,13 +14,20 @@ namespace LiveMarkdown.Avalonia;
 public partial class MarkdownRenderer
 {
     /// <summary>
-    /// Utility class to map <see cref="Control"/> to <see cref="BlockNode{TInline}"/> itself
+    /// Utility class that keeps inline nodes synchronized with an <see cref="InlineCollection"/>.
     /// </summary>
     /// <param name="target"></param>
     public class InlinesProxy(InlineCollection target)
     {
+        /// <summary>
+        /// Gets the number of inline nodes in the proxy.
+        /// </summary>
         public int Count => children.Count;
 
+        /// <summary>
+        /// Gets or replaces an inline node at the specified index.
+        /// </summary>
+        /// <param name="index">The zero-based inline index.</param>
         public InlineNode this[int index]
         {
             get => children[index];
@@ -33,6 +40,10 @@ public partial class MarkdownRenderer
 
         private readonly List<InlineNode> children = [];
 
+        /// <summary>
+        /// Adds an inline node and its Avalonia inline to the target collection.
+        /// </summary>
+        /// <param name="node">The node to add.</param>
         public void Add(InlineNode node)
         {
             children.Add(node);
@@ -40,6 +51,10 @@ public partial class MarkdownRenderer
             Debug.Assert(children.Count == target.Count, "Children count mismatch");
         }
 
+        /// <summary>
+        /// Removes the inline node at the specified index.
+        /// </summary>
+        /// <param name="index">The zero-based inline index.</param>
         public void RemoveAt(int index)
         {
             var node = children[index];
@@ -50,21 +65,36 @@ public partial class MarkdownRenderer
     }
 
     /// <summary>
-    /// Utility class to map <see cref="Control"/> to <see cref="BlockNode{TBlock}"/> itself
+    /// Utility class that keeps block nodes synchronized with an Avalonia control collection.
     /// </summary>
     /// <param name="target"></param>
     public class BlocksProxy(Controls target)
     {
+        /// <summary>
+        /// A lightweight block node used when a control has no corresponding Markdown node.
+        /// </summary>
+        /// <param name="control">The control represented by the mock node.</param>
         public class MockBlockNode(Control control) : BlockNode
         {
             private const string NotSupportedMessage = "This node is a mock and does not support this operation.";
 
+            /// <summary>
+            /// Gets the represented control.
+            /// </summary>
             public override Control Control => control;
 
             private Control control = control;
 
+            /// <summary>
+            /// Replaces the represented control.
+            /// </summary>
+            /// <param name="control">The new control.</param>
             public void SetControl(Control control) => this.control = control;
 
+            /// <summary>
+            /// Mock nodes cannot update Markdown content.
+            /// </summary>
+            /// <exception cref="NotSupportedException">Always thrown.</exception>
             protected override bool UpdateCore(
                 DocumentNode documentNode,
                 MarkdownObject markdownObject,
@@ -75,8 +105,15 @@ public partial class MarkdownRenderer
             }
         }
 
+        /// <summary>
+        /// Gets the number of block nodes in the proxy.
+        /// </summary>
         public int Count => children.Count;
 
+        /// <summary>
+        /// Gets or replaces a block node at the specified index.
+        /// </summary>
+        /// <param name="index">The zero-based block index.</param>
         public BlockNode this[int index]
         {
             get => children[index];
@@ -89,6 +126,10 @@ public partial class MarkdownRenderer
 
         private readonly List<BlockNode> children = [];
 
+        /// <summary>
+        /// Adds a block node and its control to the target collection.
+        /// </summary>
+        /// <param name="node">The node to add.</param>
         public void Add(BlockNode node)
         {
             children.Add(node);
@@ -107,6 +148,11 @@ public partial class MarkdownRenderer
             target.Add(control);
         }
 
+        /// <summary>
+        /// Replaces the control at an index, preserving a mock node when possible.
+        /// </summary>
+        /// <param name="index">The zero-based block index.</param>
+        /// <param name="control">The replacement control.</param>
         public void SetControlAt(int index, Control control)
         {
             target[index] = control;
@@ -114,6 +160,10 @@ public partial class MarkdownRenderer
             else children[index] = new MockBlockNode(control);
         }
 
+        /// <summary>
+        /// Removes the block node and control at the specified index.
+        /// </summary>
+        /// <param name="index">The zero-based block index.</param>
         public void RemoveAt(int index)
         {
             var node = children[index];
@@ -122,6 +172,9 @@ public partial class MarkdownRenderer
             Debug.Assert(children.Count == target.Count, "Children count mismatch");
         }
 
+        /// <summary>
+        /// Removes all block nodes and controls from the proxy and target collection.
+        /// </summary>
         public void Clear()
         {
             target.Clear();
@@ -259,13 +312,8 @@ public partial class MarkdownRenderer
 
             cursor = Math.Min(cursor, text.Length);
 
-            int begin;
-            int i;
             int cr;
-            int lf;
-
-            lf = LineBegin(text, cursor) - 1;
-
+            var lf = LineBegin(text, cursor) - 1;
             if (lf > 0 && text[lf] == '\n' && text[lf - 1] == '\r')
             {
                 cr = lf - 1;
@@ -281,9 +329,9 @@ public partial class MarkdownRenderer
                 return (cr > 0) ? cr : 0;
             }
 
-            CharClass cc = GetCharClass(text[cursor - 1]);
-            begin = lf + 1;
-            i = cursor;
+            var cc = GetCharClass(text[cursor - 1]);
+            var begin = lf + 1;
+            var i = cursor;
 
             // skip over the word, punctuation, or run of whitespace
             while (i > begin && GetCharClass(text[i - 1]) == cc)
@@ -306,15 +354,13 @@ public partial class MarkdownRenderer
 
         public static int NextWord(string text, int cursor)
         {
-            int i, lf, cr;
-
-            cr = LineEnd(text, cursor);
-
             if (cursor >= text.Length)
             {
                 return cursor;
             }
 
+            int lf;
+            var cr = LineEnd(text, cursor);
             if (cr < text.Length && text[cr] == '\r' && cr + 1 < text.Length && text[cr + 1] == '\n')
             {
                 lf = cr + 1;
@@ -335,9 +381,8 @@ public partial class MarkdownRenderer
                 return cursor;
             }
 
-            i = cursor;
-
             // skip any whitespace after the word/punct
+            var i = cursor;
             while (i < cr && char.IsWhiteSpace(text[i]))
             {
                 i++;
@@ -365,14 +410,13 @@ public partial class MarkdownRenderer
             {
                 return CharClass.CharClassWhitespace;
             }
-            else if (char.IsLetterOrDigit(c))
+
+            if (char.IsLetterOrDigit(c))
             {
                 return CharClass.CharClassAlphaNumeric;
             }
-            else
-            {
-                return CharClass.CharClassUnknown;
-            }
+
+            return CharClass.CharClassUnknown;
         }
 
         private static int LineBegin(string text, int pos)

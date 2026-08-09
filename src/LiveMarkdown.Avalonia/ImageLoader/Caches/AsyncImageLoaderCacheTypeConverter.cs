@@ -9,11 +9,13 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public class AsyncImageLoaderCacheTypeConverter : TypeConverter
 {
+    /// <inheritdoc/>
     public override bool CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
     {
         return sourceType == typeof(string);
     }
 
+    /// <inheritdoc/>
     public override object? ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, object? value)
     {
         if (value is string str)
@@ -37,11 +39,13 @@ public class AsyncImageLoaderCacheTypeConverter : TypeConverter
 /// </summary>
 public class AsyncImageLoaderCacheTypeConverter : TypeConverter
 {
+    /// <inheritdoc/>
     public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
     {
         return sourceType == typeof(string);
     }
 
+    /// <inheritdoc/>
     public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
     {
         if (value is string str)

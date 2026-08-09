@@ -49,6 +49,7 @@ public class MarkdownListGrid : Panel
         AffectsMeasure<MarkdownListGrid>(ColumnSpacingProperty, RowSpacingProperty);
     }
 
+    /// <inheritdoc/>
     protected override Size MeasureOverride(Size availableSize)
     {
         _rowHeights.Clear();
@@ -114,6 +115,7 @@ public class MarkdownListGrid : Panel
             totalHeight);
     }
 
+    /// <inheritdoc/>
     protected override Size ArrangeOverride(Size finalSize)
     {
         if (Children.Count == 0) return finalSize;

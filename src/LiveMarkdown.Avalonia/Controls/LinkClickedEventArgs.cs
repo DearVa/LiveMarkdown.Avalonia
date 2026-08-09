@@ -10,5 +10,8 @@ namespace LiveMarkdown.Avalonia;
 /// <param name="href"></param>
 public class LinkClickedEventArgs(RoutedEvent routedEvent, object source, Uri? href) : RoutedEventArgs(routedEvent, source)
 {
+    /// <summary>
+    /// Gets the URI associated with the clicked link.
+    /// </summary>
     public Uri? HRef => href;
 }

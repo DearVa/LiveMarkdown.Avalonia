@@ -4,8 +4,14 @@ using Markdig.Syntax;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Base class for nodes that render Markdig block objects as Avalonia controls.
+/// </summary>
 public abstract class BlockNode : MarkdownNode
 {
+    /// <summary>
+    /// Gets the Avalonia control rendered by this block node.
+    /// </summary>
     public abstract Control Control { get; }
 
     internal static bool HasMoreSpecificBlockNodeFactory(Type blockType, Type fallbackMarkdownType)
@@ -18,6 +24,14 @@ public abstract class BlockNode : MarkdownNode
                 factory.MarkdownType.IsAssignableFrom(blockType));
     }
 
+    /// <summary>
+    /// Creates the most specific registered node for a Markdig block.
+    /// </summary>
+    /// <param name="documentNode">The owning document node.</param>
+    /// <param name="block">The Markdig block to render.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel node creation.</param>
+    /// <returns>A node capable of rendering the block.</returns>
     protected static BlockNode CreateBlockNode(
         DocumentNode documentNode,
         Block block,
@@ -40,8 +54,18 @@ public abstract class BlockNode : MarkdownNode
     }
 }
 
+/// <summary>
+/// Base class for block nodes that handle a specific Markdig block type.
+/// </summary>
+/// <typeparam name="TBlock">The Markdig block type handled by the node.</typeparam>
 public abstract class BlockNode<TBlock> : BlockNode where TBlock : Block
 {
+    /// <summary>
+    /// Determines whether the block requires synchronization for the source change.
+    /// </summary>
+    /// <param name="markdownObject">The current Markdown object.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <returns><see langword="true"/> when the block is dirty.</returns>
     protected override bool IsDirty(MarkdownObject markdownObject, in ObservableStringBuilderChangedEventArgs change)
     {
         return base.IsDirty(markdownObject, in change) ||
@@ -57,6 +81,7 @@ public abstract class BlockNode<TBlock> : BlockNode where TBlock : Block
     /// <returns></returns>
     protected virtual bool MatchesBlock(TBlock block) => block.GetType() == typeof(TBlock);
 
+    /// <inheritdoc/>
     protected sealed override bool UpdateCore(
         DocumentNode documentNode,
         MarkdownObject markdownObject,
@@ -68,6 +93,14 @@ public abstract class BlockNode<TBlock> : BlockNode where TBlock : Block
             UpdateCore(documentNode, Unsafe.As<TBlock>(markdownObject), change, cancellationToken);
     }
 
+    /// <summary>
+    /// Updates the rendered control from a strongly typed Markdig block.
+    /// </summary>
+    /// <param name="documentNode">The owning document node.</param>
+    /// <param name="block">The Markdig block to render.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns><see langword="true"/> when the block remains valid.</returns>
     protected abstract bool UpdateCore(
         DocumentNode documentNode,
         TBlock block,

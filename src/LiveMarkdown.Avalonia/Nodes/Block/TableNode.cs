@@ -5,12 +5,21 @@ using Markdig.Extensions.Tables;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Renders a Markdown table in a horizontally scrollable container.
+/// </summary>
 public class TableNode : BlockNode<Table>
 {
+    /// <summary>
+    /// Gets the scrollable control that displays the table.
+    /// </summary>
     public override Control Control { get; }
 
     private readonly MarkdownRenderer.BlocksProxy proxy;
 
+    /// <summary>
+    /// Initializes a new table node.
+    /// </summary>
     public TableNode()
     {
         var container = new MarkdownTableGrid();
@@ -28,6 +37,7 @@ public class TableNode : BlockNode<Table>
         };
     }
 
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         Table table,

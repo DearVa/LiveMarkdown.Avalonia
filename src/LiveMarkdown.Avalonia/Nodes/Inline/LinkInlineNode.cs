@@ -9,6 +9,14 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public class LinkInlineNode() : InlinesNode<LinkInline>(new Link())
 {
+    /// <summary>
+    /// Updates the link target, image source, and child inline content.
+    /// </summary>
+    /// <param name="documentNode">The owning document node.</param>
+    /// <param name="linkInline">The Markdig link inline.</param>
+    /// <param name="change">The source change being applied.</param>
+    /// <param name="cancellationToken">The token used to cancel the update.</param>
+    /// <returns><see langword="true"/> when the link remains valid.</returns>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         LinkInline linkInline,

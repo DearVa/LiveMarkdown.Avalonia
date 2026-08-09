@@ -3,19 +3,29 @@ using Markdig.Syntax;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Renders a Markdown list and its items in a two-column grid.
+/// </summary>
 public class ListBlockNode : BlockNode<ListBlock>
 {
+    /// <summary>
+    /// Gets the control that displays the list.
+    /// </summary>
     public override Control Control => grid;
 
     private readonly MarkdownListGrid grid;
     private readonly MarkdownRenderer.BlocksProxy proxy;
 
+    /// <summary>
+    /// Initializes a new list block node.
+    /// </summary>
     public ListBlockNode()
     {
         grid = new MarkdownListGrid { Classes = { "ListBlock" } };
         proxy = new MarkdownRenderer.BlocksProxy(grid.Children);
     }
 
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         ListBlock listBlock,

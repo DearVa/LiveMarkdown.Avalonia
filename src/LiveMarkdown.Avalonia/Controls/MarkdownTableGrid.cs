@@ -49,6 +49,7 @@ public class MarkdownTableGrid : Panel
         AffectsMeasure<MarkdownTableGrid>(ColumnSpacingProperty, RowSpacingProperty);
     }
 
+    /// <inheritdoc/>
     protected override Size MeasureOverride(Size availableSize)
     {
         _rowHeights.Clear();
@@ -161,6 +162,7 @@ public class MarkdownTableGrid : Panel
         return new Size(totalWidth, totalHeight);
     }
 
+    /// <inheritdoc/>
     protected override Size ArrangeOverride(Size finalSize)
     {
         if (Children.Count == 0) return finalSize;

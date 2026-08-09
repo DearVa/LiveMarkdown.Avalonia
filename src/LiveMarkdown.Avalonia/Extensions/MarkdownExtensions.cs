@@ -5,14 +5,27 @@ using Markdig.Syntax;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Extension methods for integrating LiveMarkdown behavior with Markdig pipelines and source spans.
+/// </summary>
 public static class MarkdownExtensions
 {
+    /// <summary>
+    /// Registers the code-block span fixer extension on a Markdig pipeline.
+    /// </summary>
+    /// <param name="pipeline">The pipeline to configure.</param>
+    /// <returns>The same pipeline instance for fluent configuration.</returns>
     public static MarkdownPipelineBuilder UseCodeBlockSpanFixer(this MarkdownPipelineBuilder pipeline)
     {
         pipeline.Extensions.ReplaceOrAdd<CodeBlockSpanFixerExtension>(new CodeBlockSpanFixerExtension());
         return pipeline;
     }
 
+    /// <summary>
+    /// Converts a Markdig source span, whose end index is inclusive, to a .NET range.
+    /// </summary>
+    /// <param name="span">The source span to convert.</param>
+    /// <returns>A range with an exclusive end index.</returns>
     public static Range ToRange(this in SourceSpan span)
     {
         return new Range(span.Start, span.End + 1);

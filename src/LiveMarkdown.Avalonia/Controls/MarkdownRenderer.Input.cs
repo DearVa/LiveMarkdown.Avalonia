@@ -46,6 +46,9 @@ public partial class MarkdownRenderer
         set => SetValue(CopyGestureProperty, value);
     }
 
+    /// <summary>
+    /// Gets the selected text from all selectable blocks in the renderer's selection scope.
+    /// </summary>
     public string SelectedText
     {
         get
@@ -102,6 +105,7 @@ public partial class MarkdownRenderer
     private Point? _lastSelectionPointerTopLevelPosition;
     private MarkdownTextBlock? _lastSelectionTargetBlock;
 
+    /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         currentCancellationTokenSource.Cancel();
@@ -111,6 +115,7 @@ public partial class MarkdownRenderer
         base.OnDetachedFromVisualTree(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         if (e.Handled || _interactionPointer is not null)
@@ -176,6 +181,7 @@ public partial class MarkdownRenderer
         base.OnPointerPressed(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         if (_interactionPointer != e.Pointer || _activeScopeBlocks is null)
@@ -243,6 +249,7 @@ public partial class MarkdownRenderer
         base.OnPointerMoved(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         if (e.InitialPressMouseButton == MouseButton.Right)
@@ -310,6 +317,7 @@ public partial class MarkdownRenderer
         base.OnPointerReleased(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         EndPointerInteraction();
@@ -317,6 +325,7 @@ public partial class MarkdownRenderer
         base.OnPointerCaptureLost(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerExited(PointerEventArgs e)
     {
         if (_interactionPointer == e.Pointer)
@@ -754,6 +763,9 @@ public partial class MarkdownRenderer
         bool Match(List<KeyGesture> gestures) => gestures.Any(g => g.Matches(e));
     }
 
+    /// <summary>
+    /// Copies the current renderer selection to the top-level clipboard.
+    /// </summary>
     public async void Copy()
     {
         if (TopLevel.GetTopLevel(this) is not { Clipboard: { } clipboard }) return;

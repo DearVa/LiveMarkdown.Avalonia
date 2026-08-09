@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia;
@@ -109,6 +110,9 @@ public class MarkdownTextBlock : SelectableTextBlock
         remove => RemoveHandler(LinkClickEvent, value);
     }
 
+    /// <summary>
+    /// Gets the source span in the Markdown document represented by this text block.
+    /// </summary>
     public SourceSpan SourceSpan { get; internal set; }
 
     // Link markers are scoped to this text block. The dictionary is maintained by
@@ -126,11 +130,17 @@ public class MarkdownTextBlock : SelectableTextBlock
     private TextLineGeometry[] _lineGeometry = [];
     private string? _searchText;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MarkdownTextBlock"/> class.
+    /// </summary>
     public MarkdownTextBlock()
     {
         Highlights.Changed += HandleHighlightsChanged;
     }
 
+    /// <summary>
+    /// Gets the complete text represented by this block, including nested inline content.
+    /// </summary>
     public string ActualText
     {
         get
@@ -149,6 +159,9 @@ public class MarkdownTextBlock : SelectableTextBlock
         ? inlines.Text ?? string.Empty
         : Text ?? string.Empty;
 
+    /// <summary>
+    /// Gets the selected text represented by this block, preserving nested inline content.
+    /// </summary>
     public string ActualSelectedText
     {
         get
@@ -320,6 +333,7 @@ public class MarkdownTextBlock : SelectableTextBlock
             handledEventsToo: true);
     }
 
+    /// <inheritdoc/>
     protected override void OnLostFocus(FocusChangedEventArgs e)
     {
         base.OnLostFocus(e);
@@ -330,6 +344,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         }
     }
 
+    /// <inheritdoc/>
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         SubscribeToHighlightStyles(null);
@@ -349,24 +364,28 @@ public class MarkdownTextBlock : SelectableTextBlock
         base.OnDetachedFromLogicalTree(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
         InvalidateRendererTextBlockCache(e.AttachmentPoint);
     }
 
+    /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         InvalidateRendererTextBlockCache(e.AttachmentPoint);
         base.OnDetachedFromVisualTree(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         base.OnAttachedToLogicalTree(e);
         SubscribeToHighlightStyles(HighlightStyles);
     }
 
+    /// <inheritdoc/>
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -459,6 +478,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "set_LineSpacing")]
     private extern static void SetLineSpacing(TextParagraphProperties properties, double value);
 
+    /// <inheritdoc/>
     protected override TextLayout CreateTextLayout(string? text)
     {
         var typeface = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
@@ -498,6 +518,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         return new TextLayout(textSource, paragraphProperties, TextTrimming, maxSize.Width, maxSize.Height, MaxLines);
     }
 
+    /// <inheritdoc/>
     protected override void RenderTextLayout(DrawingContext context, Point origin)
     {
         var snapshot = GetPaintSnapshot(_textRuns);
@@ -1705,7 +1726,7 @@ public class MarkdownTextBlock : SelectableTextBlock
             }
         }
 
-        public bool TryGetCodeInlineLayout(int textSourceIndex, out CodeInlineLayout layout)
+        public bool TryGetCodeInlineLayout(int textSourceIndex, [NotNullWhen(true)] out CodeInlineLayout? layout)
         {
             var low = 0;
             var high = _codeInlineLayouts.Length;
@@ -1729,7 +1750,7 @@ public class MarkdownTextBlock : SelectableTextBlock
                 return true;
             }
 
-            layout = null!;
+            layout = null;
             return false;
         }
 
@@ -1840,7 +1861,7 @@ public class MarkdownTextBlock : SelectableTextBlock
             double letterSpacing,
             double leftSpacing,
             double rightSpacing,
-            out CodeInlineLayout layout)
+            [NotNullWhen(true)] out CodeInlineLayout? layout)
         {
             var source = new CodeInlineTextSource(text, properties);
             var paragraphProperties = new GenericTextParagraphProperties(
@@ -1933,7 +1954,7 @@ public class MarkdownTextBlock : SelectableTextBlock
 
             if (shapedRuns is null)
             {
-                layout = null!;
+                layout = null;
                 return false;
             }
 
@@ -2247,6 +2268,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         return text.Length;
     }
 
+    /// <inheritdoc/>
     protected override void OnMeasureInvalidated()
     {
         _searchText = null;
@@ -2269,6 +2291,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     private Link? pointerLink;
     private Link? pressingLink;
 
+    /// <inheritdoc/>
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         UpdatePointerOverLink(e.GetPosition(this));
@@ -2283,6 +2306,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         base.OnPointerPressed(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         if (this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault() is not null)
@@ -2318,6 +2342,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         base.OnPointerReleased(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         var renderer = this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault();
@@ -2334,6 +2359,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         base.OnPointerMoved(e);
     }
 
+    /// <inheritdoc/>
     protected override void OnPointerExited(PointerEventArgs e)
     {
         pointerLink = null;
@@ -2342,6 +2368,9 @@ public class MarkdownTextBlock : SelectableTextBlock
         base.OnPointerExited(e);
     }
 
+    /// <summary>
+    /// Selects all text represented by this block.
+    /// </summary>
     public new void SelectAll()
     {
         SetCurrentValue(SelectionStartProperty, 0);

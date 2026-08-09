@@ -8,11 +8,15 @@ namespace LiveMarkdown.Avalonia;
 /// </summary>
 public class ThematicBreakBlockNode : BlockNode<ThematicBreakBlock>
 {
+    /// <summary>
+    /// Gets the border used to display the horizontal rule.
+    /// </summary>
     public override Control Control { get; } = new Border
     {
         Classes = { "ThematicBreak" }
     };
 
+    /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,
         ThematicBreakBlock thematicBreakBlock,
