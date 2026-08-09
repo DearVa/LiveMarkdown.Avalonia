@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Markdig.Syntax;
 using TextMateSharp.Grammars;
 
 namespace LiveMarkdown.Avalonia;
@@ -201,6 +202,20 @@ public class CodeBlock : TemplatedControl
     /// </summary>
     public MarkdownTextBlock? CodeTextBlock { get; private set; }
 
+    /// <summary>
+    /// Gets or sets the Markdown source span represented by the code text layout.
+    /// The value is retained until the template text block is available.
+    /// </summary>
+    internal SourceSpan SourceSpan
+    {
+        get;
+        set
+        {
+            field = value;
+            if (CodeTextBlock is not null) CodeTextBlock.SourceSpan = value;
+        }
+    }
+
     private ScrollViewer? _scrollViewer;
     private IDisposable? _copyButtonClickedSubscription;
     private bool isApplyingSyntaxHighlighting; // prevent re-entrance
@@ -239,6 +254,7 @@ public class CodeBlock : TemplatedControl
         }
 
         CodeTextBlock.Inlines = Inlines;
+        CodeTextBlock.SourceSpan = SourceSpan;
 
         _scrollViewer = e.NameScope.Find<ScrollViewer>(ScrollViewerName);
 

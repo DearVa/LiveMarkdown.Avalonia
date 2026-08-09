@@ -128,7 +128,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     private HighlightPaintSnapshot _registeredHighlightPaintSnapshot = HighlightPaintSnapshot.Empty;
     private TextLayout? _lineGeometryLayout;
     private TextLineGeometry[] _lineGeometry = [];
-    private string? _searchText;
+    private string? _layoutText;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MarkdownTextBlock"/> class.
@@ -151,12 +151,12 @@ public class MarkdownTextBlock : SelectableTextBlock
     }
 
     /// <summary>
-    /// Gets the text represented by this block's own layout. Embedded controls are represented by
-    /// the single object-replacement character used by Avalonia's text formatter; their child text
-    /// blocks are searched independently.
+    /// Gets the text represented by this block's own layout coordinate space. Embedded controls
+    /// occupy one <see cref="MarkdownTextProjection.ObjectReplacementCharacter"/> position; their
+    /// child text blocks use independent layouts.
     /// </summary>
-    internal string SearchText => _searchText ??= Inlines is { Count: > 0 } inlines
-        ? inlines.Text ?? string.Empty
+    public string LayoutText => _layoutText ??= Inlines is { Count: > 0 } inlines
+        ? inlines.LayoutText
         : Text ?? string.Empty;
 
     /// <summary>
@@ -205,6 +205,12 @@ public class MarkdownTextBlock : SelectableTextBlock
                     case InlineUIContainer { Child: { } logicalChild }:
                     {
                         AppendLogicalText(logicalChild);
+                        currentIndex += TextRun.DefaultTextSourceLength;
+                        return;
+                    }
+                    case InlineUIContainer:
+                    {
+                        currentIndex += TextRun.DefaultTextSourceLength;
                         return;
                     }
                     default:
@@ -241,30 +247,8 @@ public class MarkdownTextBlock : SelectableTextBlock
             {
                 if (logical is MarkdownTextBlock textBlock)
                 {
-                    var actualText = textBlock.ActualText;
-                    var actualSelectedText = textBlock.ActualSelectedText;
-
-                    if (actualText.Equals(actualSelectedText, StringComparison.Ordinal))
-                    {
-                        selectionEnd += actualText.Length - 1;
-                    }
-                    else if (actualText.StartsWith(actualSelectedText, StringComparison.Ordinal))
-                    {
-                        selectionEnd += actualText.Length - actualSelectedText.Length - 1;
-                    }
-                    else
-                    {
-                        selectionEnd += actualText.Length - 1;
-                    }
-
-                    if (actualText.EndsWith(actualSelectedText, StringComparison.Ordinal))
-                    {
-                        selectionStart += actualText.Length - actualSelectedText.Length - 1;
-                    }
-
-                    stringBuilder.Append(actualSelectedText);
-                    currentIndex += actualText.Length;
-                    return; // no need to traverse its children, because ActualSelectedText will handle that
+                    stringBuilder.Append(textBlock.ActualSelectedText);
+                    return;
                 }
 
                 foreach (var child in logical.LogicalChildren) AppendLogicalText(child);
@@ -273,43 +257,9 @@ public class MarkdownTextBlock : SelectableTextBlock
     }
 
     /// <summary>
-    /// Gets the length of the text content, counting inline elements escaped as single characters.
+    /// Gets the length of this block's local layout text.
     /// </summary>
-    public int EscapedTextLength
-    {
-        get
-        {
-            if (Text is { } text) return text.Length;
-            if (Inlines is not { Count: > 0 } inlines) return 0;
-
-            var length = 0;
-            foreach (var inline in inlines) CalculateInlineLength(inline);
-            return length;
-
-            void CalculateInlineLength(Inline inline)
-            {
-                switch (inline)
-                {
-                    case Run run:
-                    {
-                        length += run.Text?.Length ?? 0;
-                        break;
-                    }
-                    case Span span:
-                    {
-                        foreach (var childInline in span.Inlines) CalculateInlineLength(childInline);
-                        break;
-                    }
-                    case LineBreak:
-                    case InlineUIContainer:
-                    {
-                        length += inline is LineBreak ? Environment.NewLine.Length : 1;
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    public int EscapedTextLength => LayoutText.Length;
 
     static MarkdownTextBlock()
     {
@@ -348,7 +298,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         SubscribeToHighlightStyles(null);
-        _searchText = null;
+        _layoutText = null;
         _paintSnapshot = TextPaintSnapshot.Empty;
         _paintSnapshotTextRuns = null;
         _paintSnapshotDirty = true;
@@ -2271,7 +2221,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     /// <inheritdoc/>
     protected override void OnMeasureInvalidated()
     {
-        _searchText = null;
+        _layoutText = null;
         var textRuns = _textRuns;
         base.OnMeasureInvalidated();
         _textRuns = textRuns;

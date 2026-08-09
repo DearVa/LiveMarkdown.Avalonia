@@ -14,7 +14,13 @@ public abstract class BlockNode : MarkdownNode
     /// </summary>
     public abstract Control Control { get; }
 
-    internal static bool HasMoreSpecificBlockNodeFactory(Type blockType, Type fallbackMarkdownType)
+    /// <summary>
+    /// Determines whether a registered factory handles the block more specifically than a fallback type.
+    /// </summary>
+    /// <param name="blockType">The runtime Markdig block type.</param>
+    /// <param name="fallbackMarkdownType">The fallback Markdig type being considered.</param>
+    /// <returns><see langword="true"/> when a more specific compatible block factory is registered.</returns>
+    public static bool HasMoreSpecificBlockNodeFactory(Type blockType, Type fallbackMarkdownType)
     {
         return NodeFactories
             .OfType<IMarkdownNodeFactory<BlockNode>>()

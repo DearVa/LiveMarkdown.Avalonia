@@ -510,52 +510,65 @@ internal static class InlineExtension
         /// <summary>
         /// Gets the actual text content of the inlines, concatenating text from Runs and handling LineBreaks.
         /// </summary>
-        public string ActualText
+        public string ActualText => ProjectText(inlines, InlineTextProjection.Logical);
+
+        /// <summary>
+        /// Gets the exact text-coordinate projection consumed by this inline collection's layout.
+        /// </summary>
+        public string LayoutText => ProjectText(inlines, InlineTextProjection.Layout);
+    }
+
+    private static string ProjectText(IEnumerable<Inline> inlines, InlineTextProjection projection)
+    {
+        var stringBuilder = new StringBuilder();
+        foreach (var inline in inlines) AppendInline(inline);
+        return stringBuilder.ToString();
+
+        void AppendInline(Inline inline)
         {
-            get
+            switch (inline)
             {
-                var stringBuilder = new StringBuilder();
-                foreach (var inline in inlines) AppendInline(inline);
-                return stringBuilder.ToString();
-
-                void AppendInline(Inline inline)
-                {
-                    switch (inline)
+                case Run run:
+                    stringBuilder.Append(run.Text);
+                    break;
+                case Span span:
+                    foreach (var childInline in span.Inlines) AppendInline(childInline);
+                    break;
+                case LineBreak:
+                    stringBuilder.Append(Environment.NewLine);
+                    break;
+                case InlineUIContainer { Child: { } logicalChild }:
+                    if (projection == InlineTextProjection.Layout)
                     {
-                        case Run run:
-                        {
-                            stringBuilder.Append(run.Text);
-                            break;
-                        }
-                        case Span span:
-                        {
-                            foreach (var childInline in span.Inlines) AppendInline(childInline);
-                            break;
-                        }
-                        case LineBreak:
-                        {
-                            stringBuilder.Append(Environment.NewLine);
-                            break;
-                        }
-                        case InlineUIContainer { Child: { } logicalChild }:
-                        {
-                            AppendLogicalText(logicalChild);
-                            break;
-                        }
+                        stringBuilder.Append(MarkdownTextProjection.ObjectReplacementCharacter);
                     }
-                }
-
-                void AppendLogicalText(ILogical logical)
-                {
-                    if (logical is MarkdownTextBlock markdownTextBlock)
+                    else
                     {
-                        stringBuilder.Append(markdownTextBlock.ActualText);
-                        return; // markdownTextBlock.ActualText will handle its own inlines
+                        AppendLogicalText(logicalChild);
                     }
 
-                    foreach (var child in logical.LogicalChildren) AppendLogicalText(child);
-                }
+                    break;
+                case InlineUIContainer when projection == InlineTextProjection.Layout:
+                    stringBuilder.Append(MarkdownTextProjection.ObjectReplacementCharacter);
+                    break;
             }
         }
+
+        void AppendLogicalText(ILogical logical)
+        {
+            if (logical is MarkdownTextBlock markdownTextBlock)
+            {
+                stringBuilder.Append(markdownTextBlock.ActualText);
+                return;
+            }
+
+            foreach (var child in logical.LogicalChildren) AppendLogicalText(child);
+        }
+    }
+
+    private enum InlineTextProjection
+    {
+        Logical,
+        Layout,
     }
 }

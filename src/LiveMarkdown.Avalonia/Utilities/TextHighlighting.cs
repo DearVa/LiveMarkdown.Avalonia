@@ -201,7 +201,7 @@ public sealed class TextHighlightRegistry
         for (var i = 1; i < orderedRanges.Length; i++)
         {
             var next = orderedRanges[i];
-            if (next.Start <= current.End)
+            if (next.Start < current.End)
             {
                 current = new TextHighlightRange(current.Start, Math.Max(current.End, next.End) - current.Start);
                 continue;

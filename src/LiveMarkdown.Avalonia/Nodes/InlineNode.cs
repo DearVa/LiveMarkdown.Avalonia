@@ -15,6 +15,16 @@ public abstract class InlineNode : MarkdownNode
     public abstract Inline Inline { get; }
 
     /// <summary>
+    /// Determines whether a registered inline node factory can handle the supplied Markdig type.
+    /// </summary>
+    /// <param name="inlineType">The runtime Markdig inline type.</param>
+    /// <returns><see langword="true"/> when a compatible inline factory is registered.</returns>
+    public static bool HasRegisteredInlineNodeFactory(Type inlineType) =>
+        NodeFactories
+            .OfType<IMarkdownNodeFactory<InlineNode>>()
+            .Any(factory => factory.MarkdownType.IsAssignableFrom(inlineType));
+
+    /// <summary>
     /// Creates and initializes a node for the specified Markdig inline.
     /// </summary>
     /// <param name="documentNode">The document that owns the inline.</param>

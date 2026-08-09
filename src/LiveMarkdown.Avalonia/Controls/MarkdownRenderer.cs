@@ -75,6 +75,8 @@ public partial class MarkdownRenderer : Control
             oldCancellation.Cancel();
             oldCancellation.Dispose();
             pendingChange = null;
+            _pendingRenderedTextStateVersion = null;
+            SetRenderedTextProjection(null);
 
             if (value is not null)
             {
@@ -83,6 +85,25 @@ public partial class MarkdownRenderer : Control
             }
         }
     }
+
+    /// <summary>
+    /// Defines the <see cref="RenderedTextProjection"/> property.
+    /// </summary>
+    public static readonly DirectProperty<MarkdownRenderer, MarkdownTextProjection?> RenderedTextProjectionProperty =
+        AvaloniaProperty.RegisterDirect<MarkdownRenderer, MarkdownTextProjection?>(
+            nameof(RenderedTextProjection),
+            renderer => renderer.RenderedTextProjection);
+
+    /// <summary>
+    /// Gets the searchable text buffers produced by the most recently committed render.
+    /// </summary>
+    public MarkdownTextProjection? RenderedTextProjection => _renderedTextProjection;
+
+    /// <summary>
+    /// Gets the content version represented by the current visual tree, or <see langword="null"/>
+    /// before the first render of the current builder completes.
+    /// </summary>
+    public long? RenderedVersion => RenderedTextProjection?.SourceVersion;
 
     /// <summary>
     /// Defines the <see cref="ImageBasePath"/> property.
@@ -160,6 +181,11 @@ public partial class MarkdownRenderer : Control
     }
 
     /// <summary>
+    /// Raised after the searchable text projection for the rendered visual tree changes.
+    /// </summary>
+    public event EventHandler? RenderedTextProjectionChanged;
+
+    /// <summary>
     /// Defines the <see cref="LinkCommand"/> property.
     /// </summary>
     public static readonly StyledProperty<ICommand?> LinkCommandProperty =
@@ -177,6 +203,7 @@ public partial class MarkdownRenderer : Control
     private ObservableStringBuilderChangedEventArgs? pendingChange;
     private Task? renderTask;
     private CancellationTokenSource currentCancellationTokenSource = new();
+    private MarkdownTextProjection? _renderedTextProjection;
 
     private readonly DocumentNode documentNode;
     private readonly MarkdownPipeline pipeline = CreatePipeline();
@@ -187,7 +214,7 @@ public partial class MarkdownRenderer : Control
     /// </summary>
     public static event Action<MarkdownPipelineBuilder>? ConfigurePipeline;
 
-    private static MarkdownPipeline CreatePipeline()
+    internal static MarkdownPipeline CreatePipeline()
     {
         var builder = new MarkdownPipelineBuilder()
             .UseAdvancedExtensions()
@@ -235,6 +262,7 @@ public partial class MarkdownRenderer : Control
     {
         base.OnAttachedToVisualTree(e);
         EnsureRenderLoopStarted();
+        SchedulePendingRenderedTextStateRefresh();
     }
 
     /// <inheritdoc/>
@@ -245,6 +273,7 @@ public partial class MarkdownRenderer : Control
         // the visual tree after a later arrange has already completed.
         EnsureRenderLoopStarted();
         base.ArrangeCore(finalRect);
+        RefreshRenderedTextState();
     }
 
     private void EnsureRenderLoopStarted()
@@ -268,6 +297,7 @@ public partial class MarkdownRenderer : Control
     private async Task RenderPendingChangesAsync(CancellationToken cancellationToken)
     {
         ObservableStringBuilder? currentBuilder = null;
+        ObservableStringBuilderSnapshot currentSnapshot = default;
         ObservableStringBuilderChangedEventArgs currentChange = default;
 
         try
@@ -278,9 +308,15 @@ public partial class MarkdownRenderer : Control
                 currentBuilder = MarkdownBuilder;
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var markdown = currentBuilder?.ToString() ?? string.Empty;
+                currentSnapshot = currentBuilder?.CaptureSnapshot() ??
+                    new ObservableStringBuilderSnapshot(string.Empty, currentChange.Version);
+                if (currentSnapshot.Version != currentChange.Version)
+                {
+                    continue;
+                }
+
                 var time = DateTimeOffset.UtcNow;
-                var document = await Task.Run(() => Markdown.Parse(markdown, pipeline), cancellationToken);
+                var document = await Task.Run(() => Markdown.Parse(currentSnapshot.Text, pipeline), cancellationToken);
 
                 cancellationToken.ThrowIfCancellationRequested();
                 Dispatcher.UIThread.VerifyAccess();
@@ -311,7 +347,7 @@ public partial class MarkdownRenderer : Control
                 }
 
                 InvalidateTextBlockCache();
-                ApplyTextSearchCore();
+                ScheduleRenderedTextStateRefresh(currentSnapshot.Version);
                 InvalidateMeasure();
 
                 if (VerboseLogger?.IsValid is true)
@@ -364,5 +400,11 @@ public partial class MarkdownRenderer : Control
         }
 
         InvalidateArrange();
+    }
+
+    private void SetRenderedTextProjection(MarkdownTextProjection? value)
+    {
+        if (!SetAndRaise(RenderedTextProjectionProperty, ref _renderedTextProjection, value)) return;
+        RenderedTextProjectionChanged?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -159,6 +159,48 @@ public class MarkdownSelectionTests
     }
 
     [Test]
+    public void ActualSelectedText_VisualInlineObjectAdvancesOneLayoutPosition()
+    {
+        var textBlock = new MarkdownTextBlock
+        {
+            Inlines = new InlineCollection
+            {
+                new Run("A"),
+                new InlineUIContainer(new Border()),
+                new Run("B"),
+            },
+            SelectionStart = 2,
+            SelectionEnd = 3,
+        };
+
+        Assert.That(textBlock.ActualSelectedText, Is.EqualTo("B"));
+    }
+
+    [Test]
+    public void ActualSelectedText_EmbeddedTextUsesChildSelectionAndParentLayoutPosition()
+    {
+        var nested = new MarkdownTextBlock
+        {
+            Text = "child",
+            SelectionStart = 2,
+            SelectionEnd = 5,
+        };
+        var parent = new MarkdownTextBlock
+        {
+            Inlines = new InlineCollection
+            {
+                new Run("A"),
+                new InlineUIContainer(nested),
+                new Run("B"),
+            },
+            SelectionStart = 2,
+            SelectionEnd = 3,
+        };
+
+        Assert.That(parent.ActualSelectedText, Is.EqualTo("ildB"));
+    }
+
+    [Test]
     public void TextHighlightRegistry_MergesOverlappingAndAdjacentRanges()
     {
         var registry = new TextHighlightRegistry();

@@ -57,6 +57,8 @@ public class CodeBlockNode : BlockNode<Markdig.Syntax.CodeBlock>
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (codeBlock.Lines.Lines is null) return false;
 
+        _codeBlock.SourceSpan = codeBlock.Span;
+
         var inlines = _codeBlock.Inlines;
         foreach (var (slice, lineIndex) in codeBlock.Lines.Lines.Take(codeBlock.Lines.Count).Select((l, i) => (l.Slice, i)))
         {

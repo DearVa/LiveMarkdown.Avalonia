@@ -6,6 +6,21 @@ namespace LiveMarkdown.Avalonia.Tests;
 public class ObservableStringBuilderTests
 {
     [Test]
+    public void CaptureSnapshot_DerivedToStringViewDoesNotChangeCommittedTextOrVersion()
+    {
+        var builder = new ProducerViewObservableStringBuilder("committed", "producer-ahead");
+
+        var snapshot = builder.CaptureSnapshot();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(builder.ToString(), Is.EqualTo("producer-ahead"));
+            Assert.That(snapshot.Text, Is.EqualTo("committed"));
+            Assert.That(snapshot.Version, Is.Zero);
+        });
+    }
+
+    [Test]
     public void Append_RaisesRangeLengthAndVersionWithoutSnapshotText()
     {
         var builder = new ObservableStringBuilder("abc");
@@ -62,5 +77,11 @@ public class ObservableStringBuilderTests
             Assert.That(change.Value.Version, Is.EqualTo(1));
             Assert.That(builder.Version, Is.EqualTo(1));
         });
+    }
+
+    private sealed class ProducerViewObservableStringBuilder(string committed, string producerView)
+        : ObservableStringBuilder(committed)
+    {
+        public override string ToString() => producerView;
     }
 }

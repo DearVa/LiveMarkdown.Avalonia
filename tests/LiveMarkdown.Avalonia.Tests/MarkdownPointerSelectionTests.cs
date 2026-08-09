@@ -8,6 +8,9 @@ using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
+using Markdig;
+using Markdig.Helpers;
 using NUnit.Framework;
 
 namespace LiveMarkdown.Avalonia.Tests;
@@ -737,6 +740,58 @@ public class MarkdownPointerSelectionTests
         Assert.That(result.Item2.Width, Is.EqualTo(result.Item1.Width).Within(1e-9));
         Assert.That(result.Item2.Height, Is.EqualTo(result.Item1.Height).Within(1e-9));
         Assert.That(result.Item2.Lines, Is.EqualTo(result.Item1.Lines));
+    }
+
+    [Test]
+    public async Task MarkdownTextProjector_BuiltInDocumentMatchesRenderedBlockPartitionAndText()
+    {
+        const string markdown =
+            "# Heading\n\nParagraph with **bold** and `code`.\n\n- [x] task\n- second\n\n| A | B |\n| - | - |\n| one | two |\n\n```text\ncode line\n```";
+        var renderedBuffers = await session.Dispatch(
+            () =>
+            {
+                var renderer = new MarkdownRenderer();
+                var documentNode = new DocumentNode(renderer);
+                var window = new Window
+                {
+                    Width = 800,
+                    Height = 600,
+                    Content = documentNode.Control,
+                };
+                try
+                {
+                    window.Show();
+                    var document = Markdown.Parse(markdown, MarkdownRenderer.CreatePipeline());
+                    documentNode.Update(
+                        documentNode,
+                        document,
+                        new ObservableStringBuilderChangedEventArgs(0, markdown.Length, markdown.Length, 1),
+                        CancellationToken.None);
+                    documentNode.Control.Measure(new Size(800, 600));
+                    documentNode.Control.Arrange(new Rect(0, 0, 800, 600));
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+
+                    return documentNode.Control
+                        .GetSelfAndVisualDescendants()
+                        .OfType<MarkdownTextBlock>()
+                        .Where(block => block.IsVisible)
+                        .Select(block => new MarkdownTextBuffer(
+                            block.SourceSpan,
+                            new StringSlice(block.LayoutText)))
+                        .ToArray();
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        var projectedBuffers = new MarkdownTextProjector()
+            .Project(new ObservableStringBuilderSnapshot(markdown, 1))
+            .Buffers;
+
+        Assert.That(projectedBuffers, Is.EqualTo(renderedBuffers));
     }
 
     [Test]

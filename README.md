@@ -9,8 +9,8 @@
 <p align="center">
   <a href="https://deepwiki.com/DearVa/LiveMarkdown.Avalonia"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <a href="https://www.nuget.org/packages/LiveMarkdown.Avalonia/"><img src="https://img.shields.io/nuget/v/LiveMarkdown.Avalonia.svg?style=flat-square" alt="NuGet"></a>
-  <a href="https://docs.microsoft.com/en-us/dotnet/standard/net-standard"><img src="https://img.shields.io/badge/netstandard-2.0-blue.svg?style=flat-square" alt="netstandard2.0"></a>
-  <a href="https://avaloniaui.net/"><img src="https://img.shields.io/badge/Avalonia-11-blue.svg?style=flat-square" alt="Avalonia"></a>
+  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-8.0%20%7C%2010.0-512BD4.svg?style=flat-square" alt=".NET 8 and .NET 10"></a>
+  <a href="https://avaloniaui.net/"><img src="https://img.shields.io/badge/Avalonia-12-blue.svg?style=flat-square" alt="Avalonia 12"></a>
   <a href="https://github.com/DearVa/LiveMarkdown.Avalonia/issues"><img src="https://img.shields.io/github/issues/DearVa/LiveMarkdown.Avalonia.svg?style=flat-square" alt="GitHub issues"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"></a>
 </p>
@@ -39,7 +39,7 @@ updating, **especially when streaming large model outputs**.
 - 📜 **Code block syntax highlighting**: Supports multiple languages with [TextMateSharp](https://github.com/danipen/TextMateSharp)
 - 🖼️ **Image support**: Load online, local even `avares` images asynchronously
 - ✍️ **Selectable text**: Text can be selected across different Markdown elements
-- 🔎 **Text search and customizable highlights**: Search rendered text with case-sensitive and whole-word options, or provide a custom matcher and CSS-like highlight styles
+- 🔎 **Text search and customizable highlights**: Search rendered or off-screen Markdown with shared literal matching, custom matchers, and CSS-like highlight styles
 - 🧮 **LaTeX support**: Render mathematical expressions using [CSharpMath](https://github.com/verybadcat/CSharpMath)
 - 🖋️ **Mermaid diagram full support**: Render flowcharts, sequence diagrams, and more using [Mermaider](https://github.com/nullean/mermaider)
 - 🛠️ **Extensible Markdown pipeline**: Register custom Markdown nodes and extend the rendering pipeline
@@ -47,12 +47,6 @@ updating, **especially when streaming large model outputs**.
 > [!NOTE]
 > This library currently only supports `Append` and `Clear` operations on the Markdown content, which is enough for LLM
 > streaming scenarios.
-
-> [!WARNING]
-> Known issue: Avalonia 11.3.5 and 11.3.6 changed text layout behavior, which may cause some text offset issues in
-> certain scenarios. e.g. code inline has extra bottom margin, wried italic font rendering, etc.
->
-> Please use 11.3.0 ~ 11.3.4 or >= 11.3.7 to avoid this problem.
 
 ## ❤️ Sponsor
 
@@ -232,6 +226,107 @@ block.Highlights.Set(
 
 Use `TextHighlightStyles.Set` to define the visual style for each name. A style can specify `Background`, `Foreground`,
 `CornerRadius`, and `Padding`; the registry priority determines which overlapping highlight wins.
+
+#### Search Markdown without creating a visual tree
+
+`MarkdownTextProjector` parses a committed builder snapshot with the same Markdig pipeline used by
+`MarkdownRenderer`. It produces one searchable buffer for each visual Markdown text block, without constructing
+Avalonia controls:
+
+```csharp
+var projector = new MarkdownTextProjector();
+var pattern = new TextSearchPattern("render");
+
+// Capture the text and its matching version on the builder's owning thread.
+var snapshot = markdownBuilder.CaptureSnapshot();
+var projection = await Task.Run(
+    () => projector.Project(snapshot, cancellationToken),
+    cancellationToken);
+
+// Discard stale work if the source changed while it was being projected.
+if (projection.SourceVersion == markdownBuilder.Version)
+{
+    var matchCount = projection.Buffers.Sum(
+        buffer => pattern.FindRanges(buffer.Text).Count());
+}
+```
+
+`MarkdownTextBuffer.Text` is a Markdig `StringSlice`. Simple literals and single-line code blocks can therefore reuse
+their existing source storage; only projections that combine multiple inline fragments allocate one final string.
+`TextSearchPattern.FindRanges(StringSlice)` returns offsets local to the slice, so callers must not add
+`StringSlice.Start` when mapping a result to a `MarkdownTextBlock`.
+
+Derive from `MarkdownTextProjector` when custom Markdig nodes have searchable visual text. The default traversal calls
+the protected virtual `AppendBlock`, `AppendLeafBlock`, `AppendCodeBlock`, `AppendInlines`, and `AppendInline` hooks.
+Override `TryGetDirectInlineText` as well when a custom single inline can expose an existing `StringSlice` without
+building a string. `BlockNode.HasMoreSpecificBlockNodeFactory` and `InlineNode.HasRegisteredInlineNodeFactory` are
+public helpers for keeping custom projection dispatch consistent with renderer factory registration.
+
+For example, an application-specific inline can expose the same display text in both the composite and direct paths:
+
+```csharp
+public sealed class AppMarkdownTextProjector : MarkdownTextProjector
+{
+    protected override void AppendInline(
+        Markdig.Syntax.Inlines.Inline inline,
+        StringBuilder builder,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (inline is MentionInline mention)
+        {
+            builder.Append(mention.DisplayText);
+            return;
+        }
+
+        base.AppendInline(inline, builder, cancellationToken);
+    }
+
+    protected override bool TryGetDirectInlineText(
+        Markdig.Syntax.Inlines.Inline inline,
+        CancellationToken cancellationToken,
+        out StringSlice text)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (inline is MentionInline mention)
+        {
+            text = new StringSlice(mention.DisplayText);
+            return true;
+        }
+
+        return base.TryGetDirectInlineText(inline, cancellationToken, out text);
+    }
+}
+```
+
+`MarkdownRenderer.RenderedTextProjection` exposes the equivalent buffers produced by the realized visual tree.
+Listen to `RenderedTextProjectionChanged` when a consumer needs to replace an off-screen result with the authoritative
+rendered result. `MarkdownTextBuffer.SourceSpan` identifies the corresponding source range within that source version;
+it is not a stable identity across later edits.
+
+The off-screen projector covers the built-in Markdown nodes. Registered custom inline nodes are represented as embedded
+objects, and custom nodes with specialized visual rendering may only be represented accurately by
+`RenderedTextProjection` after the renderer is realized.
+
+#### Text coordinates and precise navigation
+
+Search and highlight ranges always use UTF-16 offsets local to one `MarkdownTextBlock`:
+
+| Property | Meaning |
+|----------|---------|
+| `ActualText` | Logical text used for copying, including text inside nested inline controls. |
+| `LayoutText` | Exact text coordinate space of this block's own `TextLayout`. Embedded controls occupy one `U+FFFC` position and their child text blocks have independent coordinates. |
+
+`TextSearchMatcher` receives `LayoutText`. The object-replacement position is deliberately not searchable. To navigate
+to a concrete match, use `GetTextRangeBoundsInControl` and transform the returned rectangles to the owning viewport:
+
+```csharp
+var rectangles = match.Block.GetTextRangeBoundsInControl(
+    match.Range.Start,
+    match.Range.Length);
+```
+
+One range can produce multiple rectangles when it crosses a wrapped line.
 
 ### 5. (Optional) Enable LaTeX rendering
 
@@ -423,6 +518,26 @@ Here are the available resource keys:
 | `FontSizeXl`                   | `Double` | Extra large font size for Heading3                  |
 | `FontSize2Xl`                  | `Double` | 2XL font size for Heading2                          |
 | `FontSize3Xl`                  | `Double` | 3XL font size for Heading1                          |
+
+### Inline Code Style
+
+`CodeInline` is a text run rather than an embedded control, so it participates in the paragraph's normal selection,
+search, font fallback, bidirectional shaping, and line wrapping. It can be styled directly:
+
+```xml
+<!-- md maps to clr-namespace:LiveMarkdown.Avalonia;assembly=LiveMarkdown.Avalonia -->
+<Style Selector="md|CodeInline">
+  <Setter Property="Background" Value="#242424"/>
+  <Setter Property="Foreground" Value="#E6B566"/>
+  <Setter Property="CornerRadius" Value="4"/>
+  <Setter Property="Padding" Value="2,0"/>
+  <Setter Property="Margin" Value="6,0"/>
+</Style>
+```
+
+Horizontal `Padding` and `Margin` reserve real layout width and therefore affect wrapping. Vertical `Padding` only
+expands the painted background; vertical `Margin` is currently retained for API symmetry but does not affect layout or
+painting. In contrast, `TextHighlightStyle.Padding` is always paint-only and never changes line breaking.
 
 ### Code Block Theme
 

@@ -26,6 +26,13 @@ public readonly record struct ObservableStringBuilderChangedEventArgs(int StartI
 }
 
 /// <summary>
+/// Represents an immutable text snapshot and the content version that produced it.
+/// </summary>
+/// <param name="Text">The complete committed text.</param>
+/// <param name="Version">The content version associated with <paramref name="Text"/>.</param>
+public readonly record struct ObservableStringBuilderSnapshot(string Text, long Version);
+
+/// <summary>
 /// A delegate for handling changes in the ObservableStringBuilder.
 /// </summary>
 public delegate void ObservableStringBuilderChangedEventHandler(in ObservableStringBuilderChangedEventArgs e);
@@ -158,6 +165,17 @@ public class ObservableStringBuilder : INotifyPropertyChanged
     {
         return stringBuilder.ToString();
     }
+
+    /// <summary>
+    /// Captures the text committed through this builder together with its matching version.
+    /// </summary>
+    /// <remarks>
+    /// This method intentionally reads the base builder directly instead of dispatching through
+    /// <see cref="ToString"/>. Derived types may expose a producer-side view from that virtual
+    /// method, while rendering and indexing need the text that has already raised
+    /// <see cref="Changed"/> on the owning thread.
+    /// </remarks>
+    public ObservableStringBuilderSnapshot CaptureSnapshot() => new(stringBuilder.ToString(), Version);
 
     /// <summary>
     /// Raises the <see cref="PropertyChanged"/> event for a property.

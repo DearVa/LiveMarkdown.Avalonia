@@ -1039,7 +1039,7 @@ public partial class MarkdownRenderer
 
     private void HandleClickSelection(MarkdownTextBlock block, int position, int clickCount)
     {
-        var text = block.ActualText;
+        var text = block.LayoutText;
         var start = position;
         var end = position;
 

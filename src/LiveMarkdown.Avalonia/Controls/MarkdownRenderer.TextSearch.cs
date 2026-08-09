@@ -1,5 +1,5 @@
-using System.Globalization;
 using Avalonia.VisualTree;
+using Markdig.Helpers;
 
 namespace LiveMarkdown.Avalonia;
 
@@ -57,6 +57,7 @@ partial class MarkdownRenderer
     private MarkdownTextBlock[]? _textBlocksCache;
     private MarkdownTextBlock[]? _selectableBlocksCache;
     private HashSet<MarkdownTextBlock>? _textSearchAppliedBlocks;
+    private long? _pendingRenderedTextStateVersion;
 
     /// <summary>
     /// Finds and paints all matches produced by a caller-supplied matcher.
@@ -104,12 +105,26 @@ partial class MarkdownRenderer
             return TextSearchMatches;
         }
 
-        var comparison = options.HasFlag(TextSearchOptions.MatchCase) ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-        var wholeWord = options.HasFlag(TextSearchOptions.WholeWord);
+        return ApplyTextSearch(new TextSearchPattern(query, options), highlightName, priority);
+    }
 
+    /// <summary>
+    /// Finds and paints all matches produced by an immutable literal search pattern.
+    /// The same pattern can also search an off-screen <see cref="MarkdownTextProjection"/>.
+    /// </summary>
+    /// <param name="pattern">The literal search pattern.</param>
+    /// <param name="highlightName">Registry name used for the result ranges.</param>
+    /// <param name="priority">Priority assigned to the result ranges.</param>
+    /// <returns>The concrete block/range pairs in visual document order.</returns>
+    public IReadOnlyList<TextHighlightMatch> ApplyTextSearch(
+        TextSearchPattern pattern,
+        string highlightName = DefaultTextSearchHighlightName,
+        int priority = 0)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
         return ApplyTextSearch(
-            static (_, text, state) => FindTextRanges(text, state.Query, state.Comparison, state.WholeWord),
-            new SearchState(query, comparison, wholeWord),
+            static (_, text, state) => state.FindRanges(text),
+            pattern,
             highlightName,
             priority);
     }
@@ -150,7 +165,13 @@ partial class MarkdownRenderer
 
     private IReadOnlyList<MarkdownTextBlock> GetTextBlocksInRenderer()
     {
-        return _textBlocksCache ??= [.. documentNode.Control.GetSelfAndVisualDescendants().OfType<MarkdownTextBlock>(),];
+        return _textBlocksCache ??=
+        [
+            .. documentNode.Control
+                .GetSelfAndVisualDescendants()
+                .OfType<MarkdownTextBlock>()
+                .Where(block => block.IsVisible),
+        ];
     }
 
     private IReadOnlyList<MarkdownTextBlock> GetSelectableBlocksInRenderer()
@@ -162,6 +183,45 @@ partial class MarkdownRenderer
     {
         _textBlocksCache = null;
         _selectableBlocksCache = null;
+
+        if (RenderedTextProjection is { } projection)
+        {
+            ScheduleRenderedTextStateRefresh(projection.SourceVersion);
+        }
+    }
+
+    private void ScheduleRenderedTextStateRefresh(long sourceVersion)
+    {
+        _pendingRenderedTextStateVersion = sourceVersion;
+        InvalidateArrange();
+    }
+
+    private void SchedulePendingRenderedTextStateRefresh()
+    {
+        if (_pendingRenderedTextStateVersion is not null) InvalidateArrange();
+    }
+
+    private void RefreshRenderedTextState()
+    {
+        if (VisualRoot is null || _pendingRenderedTextStateVersion is not { } sourceVersion) return;
+
+        if (MarkdownBuilder is not { } builder || builder.Version != sourceVersion)
+        {
+            _pendingRenderedTextStateVersion = null;
+            return;
+        }
+
+        _pendingRenderedTextStateVersion = null;
+        SetRenderedTextProjection(CreateRenderedTextProjection(sourceVersion));
+        ApplyTextSearchCore();
+    }
+
+    private MarkdownTextProjection CreateRenderedTextProjection(long sourceVersion)
+    {
+        var buffers = GetTextBlocksInRenderer()
+            .Select(block => new MarkdownTextBuffer(block.SourceSpan, new StringSlice(block.LayoutText)))
+            .ToArray();
+        return new MarkdownTextProjection(sourceVersion, buffers);
     }
 
     private void ApplyTextSearchCore()
@@ -176,7 +236,7 @@ partial class MarkdownRenderer
 
         foreach (var block in GetTextBlocksInRenderer())
         {
-            var text = block.SearchText;
+            var text = block.LayoutText;
             var ranges = NormalizeRanges(matcher(block, text), text.Length);
             if (ranges.Count == 0)
             {
@@ -270,7 +330,7 @@ partial class MarkdownRenderer
         for (var i = 1; i < orderedRanges.Count; i++)
         {
             var next = orderedRanges[i];
-            if (next.Start <= current.End)
+            if (next.Start < current.End)
             {
                 current = new TextHighlightRange(current.Start, Math.Max(current.End, next.End) - current.Start);
                 continue;
@@ -284,52 +344,4 @@ partial class MarkdownRenderer
         return normalizedRanges;
     }
 
-    private static IEnumerable<TextHighlightRange> FindTextRanges(string text, string query, StringComparison comparison, bool wholeWord)
-    {
-        var searchStart = 0;
-        while (searchStart <= text.Length - query.Length)
-        {
-            var index = text.IndexOf(query, searchStart, comparison);
-            if (index < 0)
-            {
-                yield break;
-            }
-
-            var end = index + query.Length;
-            if (!wholeWord || IsWholeWordMatch(text, query, index, end))
-            {
-                yield return new TextHighlightRange(index, query.Length);
-            }
-
-            searchStart = end;
-        }
-    }
-
-    private static bool IsWholeWordMatch(string text, string query, int start, int end)
-    {
-        var startsWithWord = IsWordCharacter(query[0]);
-        var endsWithWord = IsWordCharacter(query[^1]);
-
-        return (!startsWithWord || start == 0 || !IsWordCharacter(text[start - 1])) &&
-            (!endsWithWord || end == text.Length || !IsWordCharacter(text[end]));
-    }
-
-    private static bool IsWordCharacter(char character)
-    {
-        return character == '_' || char.GetUnicodeCategory(character) is
-            UnicodeCategory.UppercaseLetter or
-            UnicodeCategory.LowercaseLetter or
-            UnicodeCategory.TitlecaseLetter or
-            UnicodeCategory.ModifierLetter or
-            UnicodeCategory.OtherLetter or
-            UnicodeCategory.NonSpacingMark or
-            UnicodeCategory.SpacingCombiningMark or
-            UnicodeCategory.EnclosingMark or
-            UnicodeCategory.DecimalDigitNumber or
-            UnicodeCategory.LetterNumber or
-            UnicodeCategory.OtherNumber or
-            UnicodeCategory.ConnectorPunctuation;
-    }
-
-    private readonly record struct SearchState(string Query, StringComparison Comparison, bool WholeWord);
 }

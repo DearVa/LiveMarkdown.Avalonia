@@ -43,6 +43,7 @@ public class InlineCollectionNode<TBlock> : BlockNode<TBlock> where TBlock : Lea
         in ObservableStringBuilderChangedEventArgs change,
         CancellationToken cancellationToken)
     {
+        textBlock.SourceSpan = block.Span;
         return block.Inline is { } inline &&
             inlinesNode.Update(
                 documentNode,
