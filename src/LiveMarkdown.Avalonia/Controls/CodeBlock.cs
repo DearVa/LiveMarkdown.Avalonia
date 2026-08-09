@@ -122,19 +122,31 @@ public class CodeBlock : TemplatedControl
         set => SetValue(IsCodeWrappedProperty, value);
     }
 
+    /// <summary>
+    /// Defines the <see cref="TextWrapping"/> property.
+    /// </summary>
     public static readonly DirectProperty<CodeBlock, TextWrapping> TextWrappingProperty =
         AvaloniaProperty.RegisterDirect<CodeBlock, TextWrapping>(
             nameof(TextWrapping),
             o => o.TextWrapping);
 
+    /// <summary>
+    /// Gets the text wrapping mode currently used by the code block.
+    /// </summary>
     public TextWrapping TextWrapping =>
         IsCodeWrapped ? TextWrapping.Wrap : TextWrapping.NoWrap;
 
+    /// <summary>
+    /// Defines the <see cref="HorizontalScrollBarVisibility"/> property.
+    /// </summary>
     public static readonly DirectProperty<CodeBlock, ScrollBarVisibility> HorizontalScrollBarVisibilityProperty =
         AvaloniaProperty.RegisterDirect<CodeBlock, ScrollBarVisibility>(
             nameof(HorizontalScrollBarVisibility),
             o => o.HorizontalScrollBarVisibility);
 
+    /// <summary>
+    /// Gets the horizontal scroll bar visibility currently used by the code block.
+    /// </summary>
     public ScrollBarVisibility HorizontalScrollBarVisibility =>
         IsCodeWrapped ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
 
@@ -163,6 +175,9 @@ public class CodeBlock : TemplatedControl
         }
     }
 
+    /// <summary>
+    /// Gets the inline collection containing the code content.
+    /// </summary>
     public InlineCollection Inlines { get; } = new();
 
     /// <summary>
@@ -190,6 +205,9 @@ public class CodeBlock : TemplatedControl
     private IDisposable? _copyButtonClickedSubscription;
     private bool isApplyingSyntaxHighlighting; // prevent re-entrance
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CodeBlock"/> class.
+    /// </summary>
     public CodeBlock()
     {
         Inlines.CollectionChanged += HandleInlinesChanged;
@@ -200,6 +218,10 @@ public class CodeBlock : TemplatedControl
         HighlightSyntax();
     }
 
+    /// <summary>
+    /// Called when the control's template is applied.
+    /// </summary>
+    /// <param name="e">The event arguments for the applied template.</param>
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
@@ -230,6 +252,10 @@ public class CodeBlock : TemplatedControl
         }
     }
 
+    /// <summary>
+    /// Called when an Avalonia property on the control changes.
+    /// </summary>
+    /// <param name="change">Details about the property change.</param>
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);

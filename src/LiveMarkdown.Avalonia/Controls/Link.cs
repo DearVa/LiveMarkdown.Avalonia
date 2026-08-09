@@ -13,6 +13,9 @@ using Avalonia.Media.TextFormatting;
 
 namespace LiveMarkdown.Avalonia;
 
+/// <summary>
+/// Represents a hyperlink rendered inside a Markdown text block.
+/// </summary>
 [PseudoClasses(":clicked", ":disabled")]
 public class Link : Span
 {
@@ -84,6 +87,9 @@ public class Link : Span
     private static long nextTagId;
     private WeakReference<MarkdownTextBlock>? registeredTextBlock;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Link"/> class.
+    /// </summary>
     public Link()
     {
         Classes.Add("Link");
@@ -97,6 +103,10 @@ public class Link : Span
         UpdatePseudoClasses();
     }
 
+    /// <summary>
+    /// Called when the link is attached to a logical tree.
+    /// </summary>
+    /// <param name="e">The event arguments for the logical tree attachment.</param>
     protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         base.OnAttachedToLogicalTree(e);
@@ -115,6 +125,10 @@ public class Link : Span
         textBlock.RegisterLink(this);
     }
 
+    /// <summary>
+    /// Called when the link is detached from a logical tree.
+    /// </summary>
+    /// <param name="e">The event arguments for the logical tree detachment.</param>
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         if (registeredTextBlock?.TryGetTarget(out var textBlock) == true)
@@ -126,6 +140,9 @@ public class Link : Span
         base.OnDetachedFromLogicalTree(e);
     }
 
+    /// <summary>
+    /// Gets the command that opens the link in the default web browser.
+    /// </summary>
     public ICommand OpenCommand => _openCommand ??= new SimpleCommand(Open, () => HRef is not null);
 
     private SimpleCommand? _openCommand;
@@ -141,6 +158,9 @@ public class Link : Span
         await topLevel.Launcher.LaunchUriAsync(HRef);
     }
 
+    /// <summary>
+    /// Gets the command that copies the link URL to the clipboard.
+    /// </summary>
     public ICommand CopyCommand => _copyCommand ??= new SimpleCommand(Copy, () => HRef is not null);
 
     private SimpleCommand? _copyCommand;
@@ -156,6 +176,9 @@ public class Link : Span
         await clipboard.SetTextAsync(HRef.ToString());
     }
 
+    /// <summary>
+    /// Gets the command that copies the link text to the clipboard.
+    /// </summary>
     public ICommand CopyTextCommand => field ??= new SimpleCommand(CopyText);
 
     /// <summary>
