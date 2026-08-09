@@ -10,6 +10,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: read
+      id-token: write
+
     env:
       CONFIGURATION: Release
       OUTPUT_DIR: ${{ github.workspace }}/out
@@ -19,9 +21,10 @@ jobs:
         src/LiveMarkdown.Avalonia.Mermaid/LiveMarkdown.Avalonia.Mermaid.csproj
         src/LiveMarkdown.Avalonia.Svg/LiveMarkdown.Avalonia.Svg.csproj
         src/LiveMarkdown.Avalonia.Svg.Skia/LiveMarkdown.Avalonia.Svg.Skia.csproj
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
@@ -29,7 +32,7 @@ jobs:
           lfs: true
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -135,13 +138,17 @@ jobs:
             dotnet pack $project --configuration $env:CONFIGURATION --no-build @packProperties -o $env:OUTPUT_DIR
           }
 
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Publish to NuGet
         shell: pwsh
         run: |
           $packages = @(Get-ChildItem -Path $env:OUTPUT_DIR -Filter "*.*nupkg")
           if ($packages.Count -eq 0) { throw 'No nupkg files found!' }
           foreach ($pkg in $packages) {
-            dotnet nuget push $pkg.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push $pkg.FullName --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
           }
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
