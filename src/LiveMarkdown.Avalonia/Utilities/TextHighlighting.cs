@@ -217,8 +217,9 @@ public sealed class TextHighlightRegistry
 }
 
 /// <summary>
-/// Paint-only properties for one named highlight. These properties never participate in text
-/// shaping or line breaking.
+/// Visual properties for one named highlight. Backgrounds are painted independently of the text
+/// layout. Foregrounds replace only the brush on a complete copy of the original run properties,
+/// preserving the typography used for shaping and line breaking.
 /// </summary>
 public sealed record TextHighlightStyle
 {
@@ -228,7 +229,8 @@ public sealed record TextHighlightStyle
     public IBrush? Background { get; init; }
 
     /// <summary>
-    /// Gets or initializes the foreground brush used for the highlight.
+    /// Gets or initializes the foreground brush used for the highlight. Changing this property
+    /// rebuilds the text layout without changing its metric-affecting run properties.
     /// </summary>
     public IBrush? Foreground { get; init; }
 
@@ -267,7 +269,7 @@ public sealed class TextHighlightStyles
     /// Adds or replaces a named highlight style.
     /// </summary>
     /// <param name="name">The style name.</param>
-    /// <param name="style">The paint-only style to associate with the name.</param>
+    /// <param name="style">The visual style to associate with the name.</param>
     public void Set(string name, TextHighlightStyle style)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);

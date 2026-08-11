@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.VisualTree;
 using Markdig.Syntax;
+using GraphemeEnumerator = Avalonia.Media.TextFormatting.Unicode.GraphemeEnumerator;
 
 namespace LiveMarkdown.Avalonia;
 
@@ -155,9 +156,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     /// occupy one <see cref="MarkdownTextProjection.ObjectReplacementCharacter"/> position; their
     /// child text blocks use independent layouts.
     /// </summary>
-    public string LayoutText => _layoutText ??= Inlines is { Count: > 0 } inlines
-        ? inlines.LayoutText
-        : Text ?? string.Empty;
+    public string LayoutText => _layoutText ??= Inlines is { Count: > 0 } inlines ? inlines.LayoutText : Text ?? string.Empty;
 
     /// <summary>
     /// Gets the selected text represented by this block, preserving nested inline content.
@@ -361,8 +360,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         }
 
         SubscribeToHighlightStyles(change.GetNewValue<TextHighlightStyles?>());
-        _registeredHighlightPaintDirty = true;
-        InvalidateVisual();
+        InvalidateRegisteredHighlightPaint();
     }
 
     private void SubscribeToHighlightStyles(TextHighlightStyles? styles)
@@ -387,13 +385,27 @@ public class MarkdownTextBlock : SelectableTextBlock
 
     private void HandleHighlightsChanged(object? sender, EventArgs e)
     {
-        _registeredHighlightPaintDirty = true;
-        InvalidateVisual();
+        InvalidateRegisteredHighlightPaint();
     }
 
     private void HandleHighlightStylesChanged(object? sender, EventArgs e)
     {
+        InvalidateRegisteredHighlightPaint();
+    }
+
+    private void InvalidateRegisteredHighlightPaint()
+    {
+        var hadForeground = _registeredHighlightPaintSnapshot.ForegroundSpans.Length > 0;
         _registeredHighlightPaintDirty = true;
+        var hasForeground = GetRegisteredHighlightPaintSnapshot().ForegroundSpans.Length > 0;
+
+        if (hadForeground || hasForeground)
+        {
+            _lineGeometryLayout = null;
+            InvalidateTextLayout();
+            return;
+        }
+
         InvalidateVisual();
     }
 
@@ -421,10 +433,10 @@ public class MarkdownTextBlock : SelectableTextBlock
         }
     }
 
-    // Selection remains an interaction state owned by SelectableTextBlock, but it must not be
-    // represented by TextRunProperties overrides. Those overrides are complete replacement
-    // values and can change shaping and line breaking. Selection and inline decorations are
-    // therefore painted in RenderTextLayout over a stable, selection-independent layout.
+    // Selection remains an interaction state owned by SelectableTextBlock. Paint overrides are
+    // complete TextRunProperties values, so every metric-affecting property must come from the
+    // original run. Only foreground is replaced and native backgrounds are suppressed; shaping
+    // and line breaking therefore retain the original run's typography.
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "set_LineSpacing")]
     private extern static void SetLineSpacing(TextParagraphProperties properties, double value);
 
@@ -453,15 +465,24 @@ public class MarkdownTextBlock : SelectableTextBlock
         SetLineSpacing(paragraphProperties, LineSpacing);
 
         ITextSource textSource;
+        var highlightPaint = GetRegisteredHighlightPaintSnapshot();
+        var selectionStart = Math.Min(SelectionStart, SelectionEnd);
+        var selectionLength = Math.Max(SelectionStart, SelectionEnd) - selectionStart;
+        var textStyles = TextStyleSnapshot.Create(
+            highlightPaint.ForegroundSpans,
+            selectionStart,
+            selectionLength,
+            SelectionForegroundBrush);
+
         if (_textRuns is { } textRuns)
         {
             var snapshot = GetPaintSnapshot(textRuns);
-            textSource = new MarkdownInlinesTextSource(textRuns, snapshot);
+            textSource = new MarkdownInlinesTextSource(textRuns, snapshot, textStyles);
         }
         else
         {
             GetPaintSnapshot(null);
-            textSource = new MarkdownSimpleTextSource(text ?? string.Empty, defaultProperties);
+            textSource = new MarkdownSimpleTextSource(text ?? string.Empty, defaultProperties, textStyles);
         }
 
         var maxSize = GetMaxSizeFromConstraint();
@@ -472,18 +493,11 @@ public class MarkdownTextBlock : SelectableTextBlock
     protected override void RenderTextLayout(DrawingContext context, Point origin)
     {
         var snapshot = GetPaintSnapshot(_textRuns);
-        var selectionStart = Math.Min(SelectionStart, SelectionEnd);
-        var selectionLength = Math.Max(SelectionStart, SelectionEnd) - selectionStart;
-        var hasSelection = SelectionBrush is not null && selectionLength > 0;
-        var hasSelectionForeground = SelectionForegroundBrush is not null && selectionLength > 0;
         var highlightPaint = GetRegisteredHighlightPaintSnapshot();
-        var hasHighlights = highlightPaint.HasPaint;
-        var registeredForegroundSpans = highlightPaint.ForegroundSpans;
-        var hasForegroundOverrides = hasSelectionForeground || registeredForegroundSpans.Length > 0;
 
-        if (snapshot.BackgroundSpans.Length == 0 && !hasHighlights && !hasSelection && !hasForegroundOverrides)
+        if (snapshot.BackgroundSpans.Length == 0 && highlightPaint.BackgroundSpans.Length == 0)
         {
-            TextLayout.Draw(context, origin);
+            base.RenderTextLayout(context, origin);
             return;
         }
 
@@ -492,470 +506,10 @@ public class MarkdownTextBlock : SelectableTextBlock
         {
             DrawPaintSpans(context, snapshot.BackgroundSpans, lines);
             DrawPaintSpans(context, highlightPaint.BackgroundSpans, lines);
-
-            if (hasSelection)
-            {
-                DrawPaintSpan(
-                    context,
-                    new TextPaintSpan(
-                        selectionStart,
-                        selectionLength,
-                        SelectionBrush!,
-                        default,
-                        default),
-                    lines);
-            }
         }
 
-        if (hasForegroundOverrides)
-        {
-            DrawTextLayoutWithForegroundOverrides(
-                context,
-                origin,
-                lines,
-                registeredForegroundSpans,
-                hasSelectionForeground
-                    ? new TextPaintForegroundSpan(
-                        selectionStart,
-                        selectionLength,
-                        SelectionForegroundBrush!,
-                        int.MaxValue,
-                        long.MaxValue)
-                    : null);
-        }
-        else
-        {
-            // Do not call SelectableTextBlock.RenderTextLayout here: it draws its own selection
-            // layer and assumes that the layout contains selection foreground overrides.
-            TextLayout.Draw(context, origin);
-        }
+        base.RenderTextLayout(context, origin);
     }
-
-    private static void DrawTextLayoutWithForegroundOverrides(
-        DrawingContext context,
-        Point origin,
-        TextLineGeometry[] lines,
-        IReadOnlyList<TextPaintForegroundSpan> foregroundSpans,
-        TextPaintForegroundSpan? selectionForegroundSpan)
-    {
-        var layoutHeight = lines.Length == 0 ? 1 : lines[^1].Y + lines[^1].TextLine.Height;
-        var clipTop = -Math.Max(1, layoutHeight + 32);
-        var clipHeight = Math.Max(1, layoutHeight * 3 + 64);
-
-        using (context.PushTransform(Matrix.CreateTranslation(origin)))
-        {
-            foreach (var line in lines)
-            {
-                DrawTextLineWithForegroundOverrides(
-                    context,
-                    line,
-                    foregroundSpans,
-                    selectionForegroundSpan,
-                    clipTop,
-                    clipHeight);
-            }
-        }
-    }
-
-    private static void DrawTextLineWithForegroundOverrides(
-        DrawingContext context,
-        in TextLineGeometry line,
-        IReadOnlyList<TextPaintForegroundSpan> foregroundSpans,
-        TextPaintForegroundSpan? selectionForegroundSpan,
-        double clipTop,
-        double clipHeight)
-    {
-        var foregroundIntervals = GetForegroundIntervals(line, foregroundSpans, selectionForegroundSpan);
-        var currentX = line.TextLine.Start;
-
-        foreach (var textRun in line.TextLine.TextRuns)
-        {
-            switch (textRun)
-            {
-                case ShapedTextRun shapedRun:
-                {
-                    var baselineOffset = GetBaselineOffset(line.TextLine, shapedRun);
-                    var runOrigin = new Point(currentX, line.Y + baselineOffset);
-                    DrawShapedRunWithForegroundOverrides(
-                        context,
-                        shapedRun,
-                        runOrigin,
-                        foregroundIntervals,
-                        clipTop,
-                        clipHeight);
-                    currentX += shapedRun.Size.Width;
-                    break;
-                }
-                case DrawableTextRun drawableRun:
-                {
-                    var baselineOffset = GetBaselineOffset(line.TextLine, drawableRun);
-                    drawableRun.Draw(context, new Point(currentX, line.Y + baselineOffset));
-                    currentX += drawableRun.Size.Width;
-                    break;
-                }
-            }
-        }
-    }
-
-    private static void DrawShapedRunWithForegroundOverrides(
-        DrawingContext context,
-        ShapedTextRun shapedRun,
-        Point origin,
-        IReadOnlyList<TextPaintInterval> foregroundIntervals,
-        double clipTop,
-        double clipHeight)
-    {
-        if (shapedRun.GlyphRun.GlyphInfos.Count == 0 || shapedRun.Properties.Typeface == default)
-        {
-            return;
-        }
-
-        var runStart = origin.X;
-        var runEnd = runStart + shapedRun.Size.Width;
-        var currentX = runStart;
-        var foreground = shapedRun.Properties.ForegroundBrush;
-        var hasForegroundOverlap = false;
-
-        foreach (var interval in foregroundIntervals)
-        {
-            if (interval.Right <= runStart)
-            {
-                continue;
-            }
-
-            if (interval.Left >= runEnd)
-            {
-                break;
-            }
-
-            hasForegroundOverlap = true;
-            break;
-        }
-
-        if (!hasForegroundOverlap)
-        {
-            DrawShapedRun(context, shapedRun, origin, foreground);
-            return;
-        }
-
-        var visualStart = origin.X + shapedRun.GlyphRun.Bounds.Left - 1;
-        var visualEnd = origin.X + shapedRun.GlyphRun.Bounds.Right + 1;
-
-        foreach (var interval in foregroundIntervals)
-        {
-            if (interval.Right <= runStart)
-            {
-                continue;
-            }
-
-            if (interval.Left >= runEnd)
-            {
-                break;
-            }
-
-            var selectedStart = Math.Max(interval.Left, runStart);
-            var selectedEnd = Math.Min(interval.Right, runEnd);
-
-            if (selectedStart > currentX)
-            {
-                var unselectedStart = Math.Abs(currentX - runStart) < 0.001d ? visualStart : currentX;
-                DrawShapedRunSlice(
-                    context,
-                    shapedRun,
-                    origin,
-                    foreground,
-                    unselectedStart,
-                    selectedStart,
-                    clipTop,
-                    clipHeight);
-            }
-
-            if (selectedEnd > selectedStart)
-            {
-                DrawShapedRunSlice(
-                    context,
-                    shapedRun,
-                    origin,
-                    interval.Brush,
-                    selectedStart,
-                    selectedEnd,
-                    clipTop,
-                    clipHeight);
-            }
-
-            currentX = Math.Max(currentX, selectedEnd);
-        }
-
-        if (currentX < runEnd)
-        {
-            DrawShapedRunSlice(
-                context,
-                shapedRun,
-                origin,
-                foreground,
-                currentX,
-                visualEnd,
-                clipTop,
-                clipHeight);
-        }
-    }
-
-    private static void DrawShapedRun(DrawingContext context, ShapedTextRun shapedRun, Point origin, IBrush? foreground)
-    {
-        if (foreground is null)
-        {
-            return;
-        }
-
-        using (context.PushTransform(Matrix.CreateTranslation(origin)))
-        {
-            context.DrawGlyphRun(foreground, shapedRun.GlyphRun);
-
-            if (shapedRun.Properties.TextDecorations is not { } decorations)
-            {
-                return;
-            }
-
-            foreach (var decoration in decorations)
-            {
-                TextDecoration_Draw(decoration, context, shapedRun.GlyphRun, shapedRun.TextMetrics, foreground);
-            }
-        }
-    }
-
-    private static void DrawShapedRunSlice(
-        DrawingContext context,
-        ShapedTextRun shapedRun,
-        Point origin,
-        IBrush? foreground,
-        double clipLeft,
-        double clipRight,
-        double clipTop,
-        double clipHeight)
-    {
-        if (foreground is null || clipRight <= clipLeft)
-        {
-            return;
-        }
-
-        // The clip is intentionally horizontal-only. Glyph overhang and text decorations can
-        // extend beyond the TextLine's nominal vertical bounds, and the control's own render
-        // clip already limits drawing to the visible control.
-        using (context.PushClip(new Rect(clipLeft, clipTop, clipRight - clipLeft, clipHeight)))
-        using (context.PushTransform(Matrix.CreateTranslation(origin)))
-        {
-            context.DrawGlyphRun(foreground, shapedRun.GlyphRun);
-
-            if (shapedRun.Properties.TextDecorations is not { } decorations)
-            {
-                return;
-            }
-
-            foreach (var decoration in decorations)
-            {
-                TextDecoration_Draw(decoration, context, shapedRun.GlyphRun, shapedRun.TextMetrics, foreground);
-            }
-        }
-    }
-
-    private static List<TextPaintInterval> GetForegroundIntervals(
-        in TextLineGeometry line,
-        IReadOnlyList<TextPaintForegroundSpan> foregroundSpans,
-        TextPaintForegroundSpan? selectionForegroundSpan)
-    {
-        if (foregroundSpans.Count == 0 && selectionForegroundSpan is null)
-        {
-            return [];
-        }
-
-        if (foregroundSpans.Count == 0 && selectionForegroundSpan is { } selectionOnly)
-        {
-            List<TextPaintInterval>? selectionIntervals = null;
-            AppendForegroundIntervals(line, selectionOnly, ref selectionIntervals);
-            return selectionIntervals ?? [];
-        }
-
-        List<TextPaintInterval>? rawIntervals = null;
-
-        foreach (var span in foregroundSpans)
-        {
-            AppendForegroundIntervals(line, span, ref rawIntervals);
-        }
-
-        if (selectionForegroundSpan is { } selection)
-        {
-            AppendForegroundIntervals(line, selection, ref rawIntervals);
-        }
-
-        if (rawIntervals is null)
-        {
-            return [];
-        }
-
-        if (rawIntervals.Count == 1)
-        {
-            return rawIntervals;
-        }
-
-        rawIntervals.Sort(static (left, right) =>
-        {
-            var result = left.Left.CompareTo(right.Left);
-            return result != 0 ? result : left.Right.CompareTo(right.Right);
-        });
-
-        var hasOverlap = false;
-        for (var index = 1; index < rawIntervals.Count; index++)
-        {
-            if (rawIntervals[index].Left < rawIntervals[index - 1].Right - 0.001)
-            {
-                hasOverlap = true;
-                break;
-            }
-        }
-
-        if (!hasOverlap)
-        {
-            return rawIntervals;
-        }
-
-        var boundaries = new List<double>(rawIntervals.Count * 2);
-        foreach (var interval in rawIntervals)
-        {
-            boundaries.Add(interval.Left);
-            boundaries.Add(interval.Right);
-        }
-
-        boundaries.Sort();
-        var uniqueBoundaries = new List<double>(boundaries.Count);
-        foreach (var boundary in boundaries)
-        {
-            if (uniqueBoundaries.Count == 0 || Math.Abs(boundary - uniqueBoundaries[^1]) > 0.001)
-            {
-                uniqueBoundaries.Add(boundary);
-            }
-        }
-
-        List<TextPaintInterval>? resolvedIntervals = null;
-        for (var index = 0; index + 1 < uniqueBoundaries.Count; index++)
-        {
-            var left = uniqueBoundaries[index];
-            var right = uniqueBoundaries[index + 1];
-            if (right - left <= 0.001)
-            {
-                continue;
-            }
-
-            var midpoint = (left + right) / 2;
-            TextPaintInterval? winningInterval = null;
-            foreach (var interval in rawIntervals)
-            {
-                if (midpoint < interval.Left || midpoint >= interval.Right ||
-                    winningInterval is { } current && !IsHigherPriority(interval, current))
-                {
-                    continue;
-                }
-
-                winningInterval = interval;
-            }
-
-            if (winningInterval is not { } winner)
-            {
-                continue;
-            }
-
-            if (resolvedIntervals is { Count: > 0 } &&
-                ReferenceEquals(resolvedIntervals[^1].Brush, winner.Brush) &&
-                resolvedIntervals[^1].Priority == winner.Priority &&
-                resolvedIntervals[^1].Order == winner.Order &&
-                Math.Abs(resolvedIntervals[^1].Right - left) <= 0.001)
-            {
-                var last = resolvedIntervals[^1];
-                resolvedIntervals[^1] = last with { Right = right };
-            }
-            else
-            {
-                (resolvedIntervals ??= []).Add(winner with
-                {
-                    Left = left,
-                    Right = right
-                });
-            }
-        }
-
-        return resolvedIntervals ?? [];
-    }
-
-    private static void AppendForegroundIntervals(in TextLineGeometry line, in TextPaintForegroundSpan span, ref List<TextPaintInterval>? intervals)
-    {
-        var segmentStart = Math.Max(span.Start, line.Start);
-        var segmentEnd = Math.Min(span.End, line.End);
-        if (segmentEnd <= segmentStart)
-        {
-            return;
-        }
-
-        foreach (var bounds in line.TextLine.GetTextBounds(segmentStart, segmentEnd - segmentStart))
-        {
-            if (bounds.Rectangle.Width <= 0)
-            {
-                continue;
-            }
-
-            (intervals ??= []).Add(
-                new TextPaintInterval(
-                    bounds.Rectangle.Left,
-                    bounds.Rectangle.Right,
-                    span.Brush,
-                    span.Priority,
-                    span.Order));
-        }
-    }
-
-    private static bool IsHigherPriority(in TextPaintInterval candidate, in TextPaintInterval current) =>
-        candidate.Priority > current.Priority ||
-        candidate.Priority == current.Priority && candidate.Order > current.Order;
-
-    private static double GetBaselineOffset(TextLine textLine, DrawableTextRun textRun)
-    {
-        var baseline = textRun.Baseline;
-        var baselineAlignment = textRun.Properties?.BaselineAlignment;
-        var baselineOffset = -baseline;
-
-        switch (baselineAlignment)
-        {
-            case BaselineAlignment.Baseline:
-                baselineOffset += textLine.Baseline;
-                break;
-            case BaselineAlignment.Top:
-            case BaselineAlignment.TextTop:
-                baselineOffset += textLine.Height - textLine.Extent + textRun.Size.Height / 2;
-                break;
-            case BaselineAlignment.Center:
-                baselineOffset += textLine.Height / 2 + baseline - textRun.Size.Height / 2;
-                break;
-            case BaselineAlignment.Subscript:
-            case BaselineAlignment.Bottom:
-            case BaselineAlignment.TextBottom:
-                baselineOffset += textLine.Height - textRun.Size.Height + baseline;
-                break;
-            case BaselineAlignment.Superscript:
-                baselineOffset += baseline;
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(baselineAlignment), baselineAlignment, null);
-        }
-
-        return baselineOffset;
-    }
-
-    // internal void Draw
-    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "Draw")]
-    private extern static void TextDecoration_Draw(
-        TextDecoration decoration,
-        DrawingContext drawingContext,
-        GlyphRun glyphRun,
-        TextMetrics textMetrics,
-        IBrush defaultBrush);
 
     private HighlightPaintSnapshot GetRegisteredHighlightPaintSnapshot()
     {
@@ -1005,19 +559,114 @@ public class MarkdownTextBlock : SelectableTextBlock
             }
         }
 
-        if (foregroundSpans is not null)
-        {
-            foregroundSpans.Sort(static (left, right) =>
-            {
-                var result = left.Start.CompareTo(right.Start);
-                return result != 0 ? result : left.End.CompareTo(right.End);
-            });
-        }
-
         return _registeredHighlightPaintSnapshot = new HighlightPaintSnapshot(
             backgroundSpans is null ? [] : [.. backgroundSpans],
-            foregroundSpans is null ? [] : [.. foregroundSpans]);
+            ResolveForegroundSpans(foregroundSpans));
     }
+
+    private static TextForegroundStyleSpan[] ResolveForegroundSpans(List<TextPaintForegroundSpan>? spans)
+    {
+        if (spans is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        spans.Sort(static (left, right) =>
+        {
+            var result = left.Start.CompareTo(right.Start);
+            return result != 0 ? result : left.End.CompareTo(right.End);
+        });
+
+        var maximumEnd = spans[0].End;
+        var hasOverlap = false;
+        for (var index = 1; index < spans.Count; index++)
+        {
+            if (spans[index].Start < maximumEnd)
+            {
+                hasOverlap = true;
+                break;
+            }
+
+            maximumEnd = Math.Max(maximumEnd, spans[index].End);
+        }
+
+        if (!hasOverlap)
+        {
+            var result = new List<TextForegroundStyleSpan>(spans.Count);
+            foreach (var span in spans)
+            {
+                AppendForegroundStyle(result, span.Start, span.End, span.Brush);
+            }
+
+            return [.. result];
+        }
+
+        var boundaries = new List<int>(spans.Count * 2);
+        foreach (var span in spans)
+        {
+            boundaries.Add(span.Start);
+            boundaries.Add(span.End);
+        }
+
+        boundaries.Sort();
+        var resolved = new List<TextForegroundStyleSpan>(boundaries.Count - 1);
+        var previousBoundary = boundaries[0];
+        for (var boundaryIndex = 1; boundaryIndex < boundaries.Count; boundaryIndex++)
+        {
+            var boundary = boundaries[boundaryIndex];
+            if (boundary == previousBoundary)
+            {
+                continue;
+            }
+
+            TextPaintForegroundSpan? winner = null;
+            foreach (var span in spans)
+            {
+                if (span.Start >= boundary)
+                {
+                    break;
+                }
+
+                if (span.End <= previousBoundary ||
+                    winner is { } current && !IsHigherPriority(span, current))
+                {
+                    continue;
+                }
+
+                winner = span;
+            }
+
+            if (winner is { } selected)
+            {
+                AppendForegroundStyle(resolved, previousBoundary, boundary, selected.Brush);
+            }
+
+            previousBoundary = boundary;
+        }
+
+        return [.. resolved];
+    }
+
+    private static void AppendForegroundStyle(List<TextForegroundStyleSpan> spans, int start, int end, IBrush brush)
+    {
+        if (end <= start)
+        {
+            return;
+        }
+
+        if (spans is { Count: > 0 } && spans[^1].End == start && ReferenceEquals(spans[^1].Brush, brush))
+        {
+            var previous = spans[^1];
+            spans[^1] = previous with { Length = end - previous.Start };
+            return;
+        }
+
+        spans.Add(new TextForegroundStyleSpan(start, end - start, brush));
+    }
+
+    private static bool IsHigherPriority(in TextPaintForegroundSpan candidate, in TextPaintForegroundSpan current) =>
+        candidate.Priority > current.Priority ||
+        candidate.Priority == current.Priority && candidate.Order > current.Order;
 
     /// <summary>
     /// Gets the visual rectangles occupied by a text range in this control's text layout.
@@ -1028,11 +677,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     {
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-
-        if (start > int.MaxValue - length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(length));
-        }
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(start, int.MaxValue - length);
 
         if (length == 0)
         {
@@ -1191,9 +836,9 @@ public class MarkdownTextBlock : SelectableTextBlock
             return _paintSnapshot;
         }
 
-        _paintSnapshot = textRuns is null
-            ? TextPaintSnapshot.Empty
-            : TextPaintSnapshot.Create(textRuns, GetCodeInlineSpans(), FlowDirection, LetterSpacing);
+        _paintSnapshot = textRuns is null ?
+            TextPaintSnapshot.Empty :
+            TextPaintSnapshot.Create(textRuns, GetCodeInlineSpans(), FlowDirection, LetterSpacing);
         _paintSnapshotTextRuns = textRuns;
         _paintSnapshotDirty = false;
         return _paintSnapshot;
@@ -1377,25 +1022,16 @@ public class MarkdownTextBlock : SelectableTextBlock
         int Length,
         IBrush Brush,
         int Priority,
-        long Order)
+        long Order
+    )
     {
         public int End => Start + Length;
     }
 
-    private readonly record struct TextPropertyOverrideSpan(
-        int Start,
-        int Length,
-        TextRunProperties Properties)
+    private readonly record struct TextForegroundStyleSpan(int Start, int Length, IBrush Brush)
     {
         public int End => Start + Length;
     }
-
-    private readonly record struct TextPaintInterval(
-        double Left,
-        double Right,
-        IBrush Brush,
-        int Priority,
-        long Order);
 
     private readonly struct TextPaintSpan(
         int start,
@@ -1425,35 +1061,159 @@ public class MarkdownTextBlock : SelectableTextBlock
             Math.Max(0, value.Bottom));
     }
 
-    private sealed class HighlightPaintSnapshot(
-        TextPaintSpan[] backgroundSpans,
-        TextPaintForegroundSpan[] foregroundSpans)
+    private sealed class HighlightPaintSnapshot(TextPaintSpan[] backgroundSpans, TextForegroundStyleSpan[] foregroundSpans)
     {
         public static readonly HighlightPaintSnapshot Empty = new([], []);
 
         public TextPaintSpan[] BackgroundSpans { get; } = backgroundSpans;
 
-        public TextPaintForegroundSpan[] ForegroundSpans { get; } = foregroundSpans;
+        public TextForegroundStyleSpan[] ForegroundSpans { get; } = foregroundSpans;
+    }
 
-        public bool HasPaint => BackgroundSpans.Length > 0 || ForegroundSpans.Length > 0;
+    /// <summary>
+    /// Resolves foreground-only paint styles in logical source coordinates. The spans are
+    /// non-overlapping and selection has already replaced any lower-priority named highlight.
+    /// Native run backgrounds are removed here as well so all background layers share the
+    /// rounded-rectangle paint path in <see cref="RenderTextLayout"/>.
+    /// </summary>
+    private sealed class TextStyleSnapshot
+    {
+        private static readonly TextStyleSnapshot Empty = new([]);
+
+        private readonly TextForegroundStyleSpan[] _foregroundSpans;
+
+        private TextStyleSnapshot(TextForegroundStyleSpan[] foregroundSpans)
+        {
+            _foregroundSpans = foregroundSpans;
+        }
+
+        public static TextStyleSnapshot Create(
+            TextForegroundStyleSpan[] foregroundSpans,
+            int selectionStart,
+            int selectionLength,
+            IBrush? selectionForeground)
+        {
+            if (selectionLength <= 0 || selectionForeground is null)
+            {
+                return foregroundSpans.Length == 0 ? Empty : new TextStyleSnapshot(foregroundSpans);
+            }
+
+            var start = Math.Max(0, selectionStart);
+            var end = selectionStart > int.MaxValue - selectionLength ? int.MaxValue : selectionStart + selectionLength;
+            if (end <= start)
+            {
+                return foregroundSpans.Length == 0 ? Empty : new TextStyleSnapshot(foregroundSpans);
+            }
+
+            var result = new List<TextForegroundStyleSpan>(foregroundSpans.Length + 2);
+            var selectionAdded = false;
+            foreach (var span in foregroundSpans)
+            {
+                if (span.End <= start)
+                {
+                    AppendForegroundStyle(result, span.Start, span.End, span.Brush);
+                    continue;
+                }
+
+                if (span.Start >= end)
+                {
+                    AddSelection();
+                    AppendForegroundStyle(result, span.Start, span.End, span.Brush);
+                    continue;
+                }
+
+                if (span.Start < start)
+                {
+                    AppendForegroundStyle(result, span.Start, start, span.Brush);
+                }
+
+                AddSelection();
+                if (span.End > end)
+                {
+                    AppendForegroundStyle(result, end, span.End, span.Brush);
+                }
+            }
+
+            AddSelection();
+            return new TextStyleSnapshot([.. result]);
+
+            void AddSelection()
+            {
+                if (selectionAdded)
+                {
+                    return;
+                }
+
+                AppendForegroundStyle(result, start, end, selectionForeground);
+                selectionAdded = true;
+            }
+        }
+
+        public TextRunProperties GetPropertiesAndLimit(int textSourceIndex, ref int textLength, TextRunProperties properties)
+        {
+            IBrush? foreground = null;
+            var hasForegroundOverride = false;
+            if (_foregroundSpans.Length > 0)
+            {
+                var spanIndex = FindFirstForegroundWithEndAfter(textSourceIndex);
+                if (spanIndex < _foregroundSpans.Length)
+                {
+                    var span = _foregroundSpans[spanIndex];
+                    if (textSourceIndex < span.Start)
+                    {
+                        textLength = Math.Min(textLength, span.Start - textSourceIndex);
+                    }
+                    else
+                    {
+                        textLength = Math.Min(textLength, span.End - textSourceIndex);
+                        foreground = span.Brush;
+                        hasForegroundOverride = true;
+                    }
+                }
+            }
+
+            if (!hasForegroundOverride && properties.BackgroundBrush is null)
+            {
+                return properties;
+            }
+
+            return CreatePaintProperties(
+                properties,
+                hasForegroundOverride ? foreground : properties.ForegroundBrush);
+        }
+
+        private int FindFirstForegroundWithEndAfter(int textSourceIndex)
+        {
+            var low = 0;
+            var high = _foregroundSpans.Length;
+            while (low < high)
+            {
+                var middle = low + ((high - low) >> 1);
+                if (_foregroundSpans[middle].End <= textSourceIndex)
+                {
+                    low = middle + 1;
+                }
+                else
+                {
+                    high = middle;
+                }
+            }
+
+            return low;
+        }
     }
 
     private sealed class TextPaintSnapshot
     {
-        public static readonly TextPaintSnapshot Empty = new([], [], []);
+        public static readonly TextPaintSnapshot Empty = new([], []);
 
         public TextPaintSpan[] BackgroundSpans { get; }
 
-        private readonly TextPropertyOverrideSpan[] _propertyOverrides;
         private readonly CodeInlineLayout[] _codeInlineLayouts;
 
-        private TextPaintSnapshot(
-            TextPaintSpan[] backgroundSpans,
-            TextPropertyOverrideSpan[] propertyOverrides,
-            CodeInlineLayout[] codeInlineLayouts)
+        private TextPaintSnapshot(TextPaintSpan[] backgroundSpans, CodeInlineLayout[] codeInlineLayouts)
         {
             BackgroundSpans = backgroundSpans;
-            _propertyOverrides = propertyOverrides;
             _codeInlineLayouts = codeInlineLayouts;
         }
 
@@ -1464,7 +1224,6 @@ public class MarkdownTextBlock : SelectableTextBlock
             double letterSpacing)
         {
             List<TextPaintSpan>? backgroundSpans = null;
-            List<TextPropertyOverrideSpan>? propertyOverrides = null;
             List<CodeInlineLayout>? codeInlineLayouts = null;
             StringBuilder? codeText = null;
             TextRunProperties? codeProperties = null;
@@ -1485,8 +1244,7 @@ public class MarkdownTextBlock : SelectableTextBlock
                 var runStart = currentIndex;
                 var runEnd = runStart + runLength;
 
-                while (codeInlineIndex < codeInlineSpans.Count &&
-                       codeInlineSpans[codeInlineIndex].End <= runStart)
+                while (codeInlineIndex < codeInlineSpans.Count && codeInlineSpans[codeInlineIndex].End <= runStart)
                 {
                     FinishCodeInline();
                     codeInlineIndex++;
@@ -1508,28 +1266,26 @@ public class MarkdownTextBlock : SelectableTextBlock
                 var hasCodeBackground = hasActiveCodeInline && activeCode.Background is not null;
                 if (textRun is TextCharacters characters)
                 {
-                    if (textRun.Properties is { BackgroundBrush: { } background } properties)
+                    if (textRun.Properties is { BackgroundBrush: { } background })
                     {
-                        var backgroundStart = runStart;
-                        var backgroundEnd = runEnd;
                         if (hasCodeBackground)
                         {
-                            if (backgroundStart < activeCode.Start)
+                            if (runStart < activeCode.Start)
                             {
                                 AddBackgroundSpan(
-                                    backgroundStart,
-                                    Math.Min(backgroundEnd, activeCode.Start) - backgroundStart,
+                                    runStart,
+                                    Math.Min(runEnd, activeCode.Start) - runStart,
                                     background,
                                     default,
                                     default,
                                     default);
                             }
 
-                            if (backgroundEnd > activeCode.End)
+                            if (runEnd > activeCode.End)
                             {
                                 AddBackgroundSpan(
-                                    Math.Max(backgroundStart, activeCode.End),
-                                    backgroundEnd - Math.Max(backgroundStart, activeCode.End),
+                                    Math.Max(runStart, activeCode.End),
+                                    runEnd - Math.Max(runStart, activeCode.End),
                                     background,
                                     default,
                                     default,
@@ -1541,11 +1297,6 @@ public class MarkdownTextBlock : SelectableTextBlock
                             AddBackgroundSpan(runStart, runLength, background, default, default, default);
                         }
 
-                        (propertyOverrides ??= []).Add(
-                            new TextPropertyOverrideSpan(
-                                runStart,
-                                runLength,
-                                CloneWithoutBackground(properties)));
                     }
 
                     if (hasActiveCodeInline)
@@ -1579,22 +1330,12 @@ public class MarkdownTextBlock : SelectableTextBlock
 
             FinishCodeInline();
 
-            var builtBackgroundSpans = backgroundSpans is null
-                ? Array.Empty<TextPaintSpan>()
-                : backgroundSpans.ToArray();
-            var builtPropertyOverrides = propertyOverrides is null
-                ? Array.Empty<TextPropertyOverrideSpan>()
-                : propertyOverrides.ToArray();
-            var builtCodeInlineLayouts = codeInlineLayouts is null
-                ? Array.Empty<CodeInlineLayout>()
-                : codeInlineLayouts.ToArray();
-            return builtBackgroundSpans.Length == 0 &&
-                   builtPropertyOverrides.Length == 0 &&
-                   builtCodeInlineLayouts.Length == 0
-                ? Empty
-                : new TextPaintSnapshot(
+            var builtBackgroundSpans = backgroundSpans is null ? Array.Empty<TextPaintSpan>() : backgroundSpans.ToArray();
+            var builtCodeInlineLayouts = codeInlineLayouts is null ? Array.Empty<CodeInlineLayout>() : codeInlineLayouts.ToArray();
+            return builtBackgroundSpans.Length == 0 && builtCodeInlineLayouts.Length == 0 ?
+                Empty :
+                new TextPaintSnapshot(
                     builtBackgroundSpans,
-                    builtPropertyOverrides,
                     builtCodeInlineLayouts);
 
             void FinishCodeInline()
@@ -1617,7 +1358,7 @@ public class MarkdownTextBlock : SelectableTextBlock
                     CodeInlineLayout.TryCreate(
                         activeCodeInline.Start,
                         text,
-                        CloneWithoutBackground(codeProperties),
+                        CreatePaintProperties(codeProperties, codeProperties.ForegroundBrush),
                         flowDirection,
                         letterSpacing,
                         leftSpacing,
@@ -1630,16 +1371,16 @@ public class MarkdownTextBlock : SelectableTextBlock
 
                 if (activeCodeInline.Background is { } background)
                 {
-                    var padding = layoutCreated
-                        ? new Thickness(0, Math.Max(0, activeCodeInline.Padding.Top), 0, Math.Max(0, activeCodeInline.Padding.Bottom))
-                        : NormalizeThickness(activeCodeInline.Padding);
-                    var inset = layoutCreated
-                        ? new Thickness(
+                    var padding = layoutCreated ?
+                        new Thickness(0, Math.Max(0, activeCodeInline.Padding.Top), 0, Math.Max(0, activeCodeInline.Padding.Bottom)) :
+                        NormalizeThickness(activeCodeInline.Padding);
+                    var inset = layoutCreated ?
+                        new Thickness(
                             Math.Max(0, activeCodeInline.Margin.Left),
                             0,
                             Math.Max(0, activeCodeInline.Margin.Right),
-                            0)
-                        : default;
+                            0) :
+                        default;
                     AddBackgroundSpan(
                         activeCodeInline.Start,
                         activeCodeInline.Length,
@@ -1704,61 +1445,6 @@ public class MarkdownTextBlock : SelectableTextBlock
             return false;
         }
 
-        public TextRunProperties GetPropertiesAndLimit(int textSourceIndex, ref int textLength, TextRunProperties properties)
-        {
-            if (_propertyOverrides.Length == 0)
-            {
-                return properties;
-            }
-
-            var spanIndex = FindFirstPropertyOverrideWithEndAfter(textSourceIndex);
-            if (spanIndex == _propertyOverrides.Length)
-            {
-                return properties;
-            }
-
-            var span = _propertyOverrides[spanIndex];
-            if (textSourceIndex < span.Start)
-            {
-                textLength = Math.Min(textLength, span.Start - textSourceIndex);
-                return properties;
-            }
-
-            textLength = Math.Min(textLength, span.End - textSourceIndex);
-            return span.Properties;
-        }
-
-        private int FindFirstPropertyOverrideWithEndAfter(int textSourceIndex)
-        {
-            var low = 0;
-            var high = _propertyOverrides.Length;
-
-            while (low < high)
-            {
-                var middle = low + ((high - low) >> 1);
-                if (_propertyOverrides[middle].End <= textSourceIndex)
-                {
-                    low = middle + 1;
-                }
-                else
-                {
-                    high = middle;
-                }
-            }
-
-            return low;
-        }
-
-        private static GenericTextRunProperties CloneWithoutBackground(TextRunProperties properties) => new(
-            properties.Typeface,
-            properties.FontRenderingEmSize,
-            properties.TextDecorations,
-            properties.ForegroundBrush,
-            backgroundBrush: null,
-            properties.BaselineAlignment,
-            properties.CultureInfo,
-            properties.FontFeatures);
-
         private static double GetHorizontalLayoutSpacing(double primary, double secondary) =>
             Math.Max(0, primary) + Math.Max(0, secondary);
 
@@ -1813,6 +1499,17 @@ public class MarkdownTextBlock : SelectableTextBlock
             double rightSpacing,
             [NotNullWhen(true)] out CodeInlineLayout? layout)
         {
+            // Avalonia's bidi resolver stores one level per Unicode code point, while
+            // CoalesceLevels advances a DrawableTextRun by its UTF-16 Length. A pre-shaped
+            // run containing a surrogate pair therefore moves past the levels array when a
+            // following run is processed. Keep those CodeInlines on the ordinary TextCharacters
+            // path until Avalonia uses a consistent unit for drawable runs.
+            if (HasCodePointLengthMismatch(text))
+            {
+                layout = null;
+                return false;
+            }
+
             var source = new CodeInlineTextSource(text, properties);
             var paragraphProperties = new GenericTextParagraphProperties(
                 flowDirection,
@@ -1934,7 +1631,20 @@ public class MarkdownTextBlock : SelectableTextBlock
             return true;
         }
 
-        public TextRun? GetTextRun(int textSourceIndex)
+        private static bool HasCodePointLengthMismatch(ReadOnlySpan<char> text)
+        {
+            for (var index = 0; index + 1 < text.Length; index++)
+            {
+                if (char.IsHighSurrogate(text[index]) && char.IsLowSurrogate(text[index + 1]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public TextRun? GetTextRun(int textSourceIndex, TextStyleSnapshot textStyles)
         {
             var localIndex = textSourceIndex - Start;
             if ((uint)localIndex >= (uint)text.Length)
@@ -1962,7 +1672,11 @@ public class MarkdownTextBlock : SelectableTextBlock
                 return null;
             }
 
-            return runs[low].CreateRun(text, localIndex);
+            var run = runs[low];
+            var length = run.End - localIndex;
+            var properties = textStyles.GetPropertiesAndLimit(textSourceIndex, ref length, run.Properties);
+            length = CoerceTextRunLength(text.AsSpan(localIndex, run.End - localIndex), length);
+            return run.CreateRun(text, localIndex, length, properties);
         }
 
         private static void AddEdgeSpacing(
@@ -1987,17 +1701,17 @@ public class MarkdownTextBlock : SelectableTextBlock
     {
         public int Start { get; }
 
-        public int End => Start + _length;
+        public int End => Start + field;
 
-        private bool IsLeftToRight => (bidiLevel & 1) == 0;
+        public TextRunProperties Properties { get; }
 
-        private readonly int _length;
-        private readonly TextRunProperties properties;
-        private readonly GlyphTypeface glyphTypeface;
-        private readonly double fontSize;
-        private readonly sbyte bidiLevel;
-        private readonly GlyphInfo[] glyphs;
-        private readonly int baseCluster;
+        private bool IsLeftToRight => (_bidiLevel & 1) == 0;
+
+        private readonly GlyphTypeface _glyphTypeface;
+        private readonly double _fontSize;
+        private readonly sbyte _bidiLevel;
+        private readonly GlyphInfo[] _glyphs;
+        private readonly int _baseCluster;
 
         public ShapedCodeInlineRun(
             int start,
@@ -2009,28 +1723,27 @@ public class MarkdownTextBlock : SelectableTextBlock
             GlyphInfo[] glyphs)
         {
             Start = start;
-            _length = length;
-            this.properties = properties;
-            this.glyphTypeface = glyphTypeface;
-            this.fontSize = fontSize;
-            this.bidiLevel = bidiLevel;
-            this.glyphs = glyphs;
-            baseCluster = glyphs.Length == 0 ? start : glyphs.Min(glyph => glyph.GlyphCluster);
+            Properties = properties;
+            End = length;
+            _glyphTypeface = glyphTypeface;
+            _fontSize = fontSize;
+            _bidiLevel = bidiLevel;
+            _glyphs = glyphs;
+            _baseCluster = glyphs.Length == 0 ? start : glyphs.Min(glyph => glyph.GlyphCluster);
         }
 
         public void AddVisualLeadingAdvance(double advance) => AddAdvance(advance, IsLeftToRight);
 
         public void AddVisualTrailingAdvance(double advance) => AddAdvance(advance, !IsLeftToRight);
 
-        public ShapedTextRun CreateRun(string sourceText, int sourceIndex)
+        public ShapedTextRun CreateRun(string sourceText, int sourceIndex, int length, TextRunProperties runProperties)
         {
             var localIndex = sourceIndex - Start;
-            var length = End - sourceIndex;
-            var firstCluster = baseCluster + localIndex;
-            var lastCluster = baseCluster + _length;
+            var firstCluster = _baseCluster + localIndex;
+            var lastCluster = firstCluster + length;
 
             var selectedCount = 0;
-            foreach (var glyph in glyphs)
+            foreach (var glyph in _glyphs)
             {
                 if (glyph.GlyphCluster < firstCluster || glyph.GlyphCluster >= lastCluster)
                 {
@@ -2041,13 +1754,13 @@ public class MarkdownTextBlock : SelectableTextBlock
             }
 
             var buffer = new ShapedBuffer(
-                sourceText.AsMemory(sourceIndex - Start, length),
+                sourceText.AsMemory(sourceIndex, length),
                 selectedCount,
-                glyphTypeface,
-                fontSize,
-                bidiLevel);
+                _glyphTypeface,
+                _fontSize,
+                _bidiLevel);
             var selectedIndex = 0;
-            foreach (var glyph in glyphs)
+            foreach (var glyph in _glyphs)
             {
                 if (glyph.GlyphCluster < firstCluster || glyph.GlyphCluster >= lastCluster)
                 {
@@ -2061,19 +1774,19 @@ public class MarkdownTextBlock : SelectableTextBlock
                     glyph.GlyphOffset);
             }
 
-            return new ShapedTextRun(buffer, properties);
+            return new ShapedTextRun(buffer, runProperties);
         }
 
         private void AddAdvance(double advance, bool logicalLeading)
         {
-            if (glyphs.Length == 0)
+            if (_glyphs.Length == 0)
             {
                 return;
             }
 
-            var isLeftToRight = (bidiLevel & 1) == 0;
-            var index = logicalLeading == isLeftToRight ? 0 : glyphs.Length - 1;
-            var glyph = glyphs[index];
+            var isLeftToRight = (_bidiLevel & 1) == 0;
+            var index = logicalLeading == isLeftToRight ? 0 : _glyphs.Length - 1;
+            var glyph = _glyphs[index];
             var offset = glyph.GlyphOffset;
 
             // An advance alone reserves space after the glyph. For the visual left edge we
@@ -2085,7 +1798,7 @@ public class MarkdownTextBlock : SelectableTextBlock
                 offset = new Vector(offset.X + advance, offset.Y);
             }
 
-            glyphs[index] = new GlyphInfo(
+            _glyphs[index] = new GlyphInfo(
                 glyph.GlyphIndex,
                 glyph.GlyphCluster,
                 glyph.GlyphAdvance + advance,
@@ -2095,9 +1808,9 @@ public class MarkdownTextBlock : SelectableTextBlock
 
     private readonly struct CodeInlineTextSource(string text, TextRunProperties properties) : ITextSource
     {
-        public TextRun GetTextRun(int textSourceIndex) => textSourceIndex >= text.Length
-            ? new TextEndOfParagraph()
-            : new TextCharacters(text.AsMemory(textSourceIndex), properties);
+        public TextRun GetTextRun(int textSourceIndex) => textSourceIndex >= text.Length ?
+            new TextEndOfParagraph() :
+            new TextCharacters(text.AsMemory(textSourceIndex), properties);
     }
 
     internal void InvalidateInlineDecorations(bool affectsLayout = false)
@@ -2115,7 +1828,7 @@ public class MarkdownTextBlock : SelectableTextBlock
         }
     }
 
-    private readonly struct MarkdownSimpleTextSource(string text, TextRunProperties defaultProperties) : ITextSource
+    private readonly struct MarkdownSimpleTextSource(string text, TextRunProperties defaultProperties, TextStyleSnapshot textStyles) : ITextSource
     {
         public TextRun GetTextRun(int textSourceIndex)
         {
@@ -2131,17 +1844,24 @@ public class MarkdownTextBlock : SelectableTextBlock
                 return new TextEndOfLine(lineBreakLength);
             }
 
-            var textLength = GetLengthBeforeLineBreak(remaining.Span);
-            return new TextCharacters(remaining[..textLength], defaultProperties);
+            var availableLength = GetLengthBeforeLineBreak(remaining.Span);
+            var textLength = availableLength;
+            var properties = textStyles.GetPropertiesAndLimit(textSourceIndex, ref textLength, defaultProperties);
+            textLength = CoerceTextRunLength(remaining.Span[..availableLength], textLength);
+            return new TextCharacters(remaining[..textLength], properties);
         }
     }
 
-    private readonly struct MarkdownInlinesTextSource(IReadOnlyList<TextRun> textRuns, TextPaintSnapshot paintSnapshot) : ITextSource
+    private readonly struct MarkdownInlinesTextSource(
+        IReadOnlyList<TextRun> textRuns,
+        TextPaintSnapshot paintSnapshot,
+        TextStyleSnapshot textStyles
+    ) : ITextSource
     {
         public TextRun GetTextRun(int textSourceIndex)
         {
             if (paintSnapshot.TryGetCodeInlineLayout(textSourceIndex, out var codeInlineLayout) &&
-                codeInlineLayout.GetTextRun(textSourceIndex) is { } shapedCodeRun)
+                codeInlineLayout.GetTextRun(textSourceIndex, textStyles) is { } shapedCodeRun)
             {
                 return shapedCodeRun;
             }
@@ -2177,17 +1897,49 @@ public class MarkdownTextBlock : SelectableTextBlock
                     return new TextEndOfLine(lineBreakLength);
                 }
 
-                var textLength = GetLengthBeforeLineBreak(remaining.Span);
-                var properties = paintSnapshot.GetPropertiesAndLimit(
+                var availableLength = GetLengthBeforeLineBreak(remaining.Span);
+                var textLength = availableLength;
+                var properties = textStyles.GetPropertiesAndLimit(
                     textSourceIndex,
                     ref textLength,
                     textCharacters.Properties);
-
+                textLength = CoerceTextRunLength(remaining.Span[..availableLength], textLength);
                 return new TextCharacters(remaining[..textLength], properties);
             }
 
             return new TextEndOfParagraph();
         }
+    }
+
+    private static GenericTextRunProperties CreatePaintProperties(TextRunProperties properties, IBrush? foreground) => new(
+        properties.Typeface,
+        properties.FontRenderingEmSize,
+        properties.TextDecorations,
+        foreground,
+        backgroundBrush: null,
+        properties.BaselineAlignment,
+        properties.CultureInfo,
+        properties.FontFeatures);
+
+    private static int CoerceTextRunLength(ReadOnlySpan<char> text, int length)
+    {
+        if (length <= 0 || length >= text.Length)
+        {
+            return Math.Clamp(length, 0, text.Length);
+        }
+
+        var finalLength = 0;
+        var graphemeEnumerator = new GraphemeEnumerator(text);
+        while (graphemeEnumerator.MoveNext(out var grapheme))
+        {
+            finalLength += grapheme.Length;
+            if (finalLength >= length)
+            {
+                return finalLength;
+            }
+        }
+
+        return Math.Min(length, text.Length);
     }
 
     private static int GetLineBreakLength(ReadOnlySpan<char> text)

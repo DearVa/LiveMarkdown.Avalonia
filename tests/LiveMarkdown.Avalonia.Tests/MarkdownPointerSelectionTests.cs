@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -574,7 +575,7 @@ public class MarkdownPointerSelectionTests
     [Test]
     public async Task CodeInline_MixedBidiKeepsLogicalCoverageAndPhysicalSpacing()
     {
-        const string codeText = "abc 👩‍💻 אבג";
+        const string codeText = "abc xyz אבג";
         var result = await session.Dispatch(
             () =>
             {
@@ -604,6 +605,12 @@ public class MarkdownPointerSelectionTests
                         .SelectMany(static line => line.TextRuns)
                         .OfType<ShapedTextRun>()
                         .Sum(static run => run.Length);
+                    var sourceSlices = block.TextLayout.TextLines
+                        .SelectMany(static line => line.TextRuns)
+                        .OfType<ShapedTextRun>()
+                        .Select(run => GetSourceSlice(run.Text, codeText))
+                        .OrderBy(static slice => slice.Start)
+                        .ToArray();
 
                     code.Padding = new Thickness(0);
                     code.Margin = new Thickness(0);
@@ -613,7 +620,8 @@ public class MarkdownPointerSelectionTests
                     return (
                         widthWithSpacing,
                         widthWithoutSpacing: block.TextLayout.WidthIncludingTrailingWhitespace,
-                        shapedLength);
+                        shapedLength,
+                        sourceSlices);
                 }
                 finally
                 {
@@ -627,7 +635,67 @@ public class MarkdownPointerSelectionTests
             {
                 Assert.That(result.shapedLength, Is.EqualTo(codeText.Length));
                 Assert.That(result.widthWithSpacing - result.widthWithoutSpacing, Is.EqualTo(28).Within(0.01));
+                Assert.That(result.sourceSlices, Is.Not.Empty);
+                Assert.That(result.sourceSlices.All(static slice => slice.MatchesSource), Is.True);
+                Assert.That(result.sourceSlices[0].Start, Is.Zero);
+                Assert.That(result.sourceSlices[^1].End, Is.EqualTo(codeText.Length));
+                Assert.That(
+                    result.sourceSlices.Zip(result.sourceSlices.Skip(1))
+                        .All(static pair => pair.First.End == pair.Second.Start),
+                    Is.True);
             });
+    }
+
+    [Test]
+    public async Task CodeInline_SupplementaryCharactersFollowedByText_FallsBackWithoutCrashing()
+    {
+        var result = await session.Dispatch(
+            () =>
+            {
+                var block = new MarkdownTextBlock();
+                var code = new CodeInline
+                {
+                    Text = "😀😀",
+                    Padding = new Thickness(2, 0),
+                    Margin = new Thickness(12, 0),
+                };
+                block.Inlines!.Add(code);
+                block.Inlines.Add(new Run("x"));
+
+                var window = new Window
+                {
+                    Width = 300,
+                    Height = 120,
+                    Content = block,
+                };
+
+                try
+                {
+                    window.Show();
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+                    var widthWithRequestedSpacing = block.TextLayout.WidthIncludingTrailingWhitespace;
+                    var lineCount = block.TextLayout.TextLines.Count;
+
+                    code.Padding = new Thickness(0);
+                    code.Margin = new Thickness(0);
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+
+                    return (
+                        lineCount,
+                        widthWithRequestedSpacing,
+                        widthWithoutSpacing: block.TextLayout.WidthIncludingTrailingWhitespace);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.That(result.lineCount, Is.EqualTo(1));
+        Assert.That(result.widthWithRequestedSpacing, Is.EqualTo(result.widthWithoutSpacing).Within(0.01));
     }
 
     [Test]
@@ -694,10 +762,11 @@ public class MarkdownPointerSelectionTests
         var result = await session.Dispatch(
             () =>
             {
+                var selectionForeground = new SolidColorBrush(Colors.White, 0.5);
                 var block = new MarkdownTextBlock
                 {
                     SelectionBrush = Brushes.CornflowerBlue,
-                    SelectionForegroundBrush = new SolidColorBrush(Colors.White, 0.5),
+                    SelectionForegroundBrush = selectionForeground,
                 };
                 block.Inlines!.Add(new Run("prefix "));
                 block.Inlines.Add(new Run("Bold and large")
@@ -728,7 +797,18 @@ public class MarkdownPointerSelectionTests
                     block.Arrange(new Rect(0, 0, 500, 160));
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();
 
-                    return (before, CaptureLayout(block));
+                    var boldRunProperties = block.TextLayout.TextLines
+                        .SelectMany(static line => line.TextRuns)
+                        .OfType<ShapedTextRun>()
+                        .Where(static run => run.Text.Span.IndexOf("Bold", StringComparison.Ordinal) >= 0)
+                        .Select(static run => run.Properties)
+                        .ToArray();
+
+                    return (
+                        before,
+                        after: CaptureLayout(block),
+                        boldRunProperties,
+                        selectionForeground);
                 }
                 finally
                 {
@@ -737,9 +817,25 @@ public class MarkdownPointerSelectionTests
             },
             CancellationToken.None);
 
-        Assert.That(result.Item2.Width, Is.EqualTo(result.Item1.Width).Within(1e-9));
-        Assert.That(result.Item2.Height, Is.EqualTo(result.Item1.Height).Within(1e-9));
-        Assert.That(result.Item2.Lines, Is.EqualTo(result.Item1.Lines));
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.after.Width, Is.EqualTo(result.before.Width).Within(1e-9));
+                Assert.That(result.after.Height, Is.EqualTo(result.before.Height).Within(1e-9));
+                Assert.That(result.after.Lines, Is.EqualTo(result.before.Lines));
+                Assert.That(result.boldRunProperties, Is.Not.Empty);
+                Assert.That(result.boldRunProperties, Has.All.Property(nameof(TextRunProperties.FontRenderingEmSize)).EqualTo(26));
+                Assert.That(result.boldRunProperties.All(properties => properties.Typeface.Weight == FontWeight.Bold), Is.True);
+                Assert.That(
+                    result.boldRunProperties.All(properties =>
+                        ReferenceEquals(properties.TextDecorations, TextDecorations.Underline)),
+                    Is.True);
+                Assert.That(
+                    result.boldRunProperties.All(properties =>
+                        ReferenceEquals(properties.ForegroundBrush, result.selectionForeground)),
+                    Is.True);
+                Assert.That(result.boldRunProperties.All(properties => properties.BackgroundBrush is null), Is.True);
+            });
     }
 
     [Test]
@@ -797,21 +893,23 @@ public class MarkdownPointerSelectionTests
     [Test]
     public async Task NamedHighlightForeground_RendersWithSelectionOverride()
     {
-        var layout = await session.Dispatch(
+        var result = await session.Dispatch(
             () =>
             {
+                var highlightForeground = new SolidColorBrush(Colors.DarkRed);
+                var selectionForeground = new SolidColorBrush(Colors.White, 0.5);
                 var block = new MarkdownTextBlock
                 {
                     Text = "prefix highlighted suffix",
                     SelectionBrush = Brushes.CornflowerBlue,
-                    SelectionForegroundBrush = new SolidColorBrush(Colors.White, 0.5),
+                    SelectionForegroundBrush = selectionForeground,
                     HighlightStyles = new TextHighlightStyles(),
                 };
                 block.HighlightStyles.Set(
                     "match",
                     new TextHighlightStyle
                     {
-                        Foreground = Brushes.DarkRed,
+                        Foreground = highlightForeground,
                         Background = Brushes.LightYellow,
                     });
                 block.Highlights.Set("match", [new TextHighlightRange(7, 11)], priority: 1);
@@ -831,7 +929,16 @@ public class MarkdownPointerSelectionTests
                     block.Measure(new Size(400, 120));
                     block.Arrange(new Rect(0, 0, 400, 120));
                     AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-                    return CaptureLayout(block);
+                    var runs = block.TextLayout.TextLines
+                        .SelectMany(static line => line.TextRuns)
+                        .OfType<ShapedTextRun>()
+                        .Select(static run => (Text: run.Text.ToString(), run.Properties.ForegroundBrush))
+                        .ToArray();
+                    return (
+                        layout: CaptureLayout(block),
+                        runs,
+                        highlightForeground,
+                        selectionForeground);
                 }
                 finally
                 {
@@ -840,8 +947,208 @@ public class MarkdownPointerSelectionTests
             },
             CancellationToken.None);
 
-        Assert.That(layout.Width, Is.GreaterThan(0));
-        Assert.That(layout.Height, Is.GreaterThan(0));
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.layout.Width, Is.GreaterThan(0));
+                Assert.That(result.layout.Height, Is.GreaterThan(0));
+                Assert.That(
+                    result.runs.Any(run =>
+                        run.Text == "hig" &&
+                        ReferenceEquals(run.ForegroundBrush, result.highlightForeground)),
+                    Is.True);
+                Assert.That(
+                    result.runs.Any(run =>
+                        run.Text == "hlighted" &&
+                        ReferenceEquals(run.ForegroundBrush, result.selectionForeground)),
+                    Is.True);
+            });
+    }
+
+    [Test]
+    public async Task OverlappingHighlightForeground_UsesPriorityAndPreservesOuterRanges()
+    {
+        var result = await session.Dispatch(
+            () =>
+            {
+                var lowPriority = new SolidColorBrush(Colors.DarkRed);
+                var highPriority = new SolidColorBrush(Colors.DarkBlue);
+                var styles = new TextHighlightStyles();
+                styles.Set("low", new TextHighlightStyle { Foreground = lowPriority });
+                styles.Set("high", new TextHighlightStyle { Foreground = highPriority });
+                var block = new MarkdownTextBlock
+                {
+                    Text = "abcdef",
+                    HighlightStyles = styles,
+                };
+                block.Highlights.Set("low", [new TextHighlightRange(0, 6)], priority: 0);
+                block.Highlights.Set("high", [new TextHighlightRange(2, 2)], priority: 1);
+
+                var window = new Window
+                {
+                    Width = 300,
+                    Height = 120,
+                    Content = block,
+                };
+
+                try
+                {
+                    window.Show();
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+                    var runs = block.TextLayout.TextLines
+                        .SelectMany(static line => line.TextRuns)
+                        .OfType<ShapedTextRun>()
+                        .Select(static run => (Text: run.Text.ToString(), run.Properties.ForegroundBrush))
+                        .ToArray();
+                    return (runs, lowPriority, highPriority);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.That(
+            result.runs,
+            Is.EqualTo(new[]
+            {
+                ("ab", (IBrush?)result.lowPriority),
+                ("cd", (IBrush?)result.highPriority),
+                ("ef", (IBrush?)result.lowPriority),
+            }));
+    }
+
+    [Test]
+    public async Task HighlightStyleChange_InvalidatesLayoutOnlyWhenForegroundIsInvolved()
+    {
+        var result = await session.Dispatch(
+            () =>
+            {
+                var styles = new TextHighlightStyles();
+                var block = new MarkdownTextBlock
+                {
+                    Text = "highlighted",
+                    HighlightStyles = styles,
+                };
+                var window = new Window
+                {
+                    Width = 300,
+                    Height = 120,
+                    Content = block,
+                };
+
+                try
+                {
+                    window.Show();
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+                    var initialLayout = block.TextLayout;
+
+                    styles.Set("match", new TextHighlightStyle { Background = Brushes.LightYellow });
+                    block.Highlights.Set("match", [new TextHighlightRange(0, 4)]);
+                    var backgroundLayout = block.TextLayout;
+
+                    styles.Set(
+                        "match",
+                        new TextHighlightStyle
+                        {
+                            Background = Brushes.LightYellow,
+                            Foreground = Brushes.DarkRed,
+                        });
+                    var foregroundLayout = block.TextLayout;
+
+                    return (
+                        backgroundKeptLayout: ReferenceEquals(initialLayout, backgroundLayout),
+                        foregroundRebuiltLayout: !ReferenceEquals(backgroundLayout, foregroundLayout));
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.That(result.backgroundKeptLayout, Is.True);
+        Assert.That(result.foregroundRebuiltLayout, Is.True);
+    }
+
+    [Test]
+    public async Task CodeInline_ForegroundOverridesPreserveShapedTextAndMetrics()
+    {
+        var result = await session.Dispatch(
+            () =>
+            {
+                var highlightForeground = new SolidColorBrush(Colors.DarkRed);
+                var selectionForeground = new SolidColorBrush(Colors.White, 0.5);
+                var block = new MarkdownTextBlock
+                {
+                    SelectionForegroundBrush = selectionForeground,
+                    HighlightStyles = new TextHighlightStyles(),
+                };
+                block.Inlines!.Add(new CodeInline
+                {
+                    Text = "code",
+                    FontSize = 22,
+                    Padding = new Thickness(2, 0),
+                    Margin = new Thickness(12, 0),
+                });
+
+                var window = new Window
+                {
+                    Width = 300,
+                    Height = 120,
+                    Content = block,
+                };
+
+                try
+                {
+                    window.Show();
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+                    var widthBefore = block.TextLayout.WidthIncludingTrailingWhitespace;
+
+                    block.HighlightStyles.Set(
+                        "match",
+                        new TextHighlightStyle { Foreground = highlightForeground });
+                    block.Highlights.Set("match", [new TextHighlightRange(0, 4)]);
+                    block.SelectionStart = 1;
+                    block.SelectionEnd = 3;
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+
+                    var runs = block.TextLayout.TextLines
+                        .SelectMany(static line => line.TextRuns)
+                        .OfType<ShapedTextRun>()
+                        .Where(static run => run.Length > 0)
+                        .ToArray();
+                    return (
+                        widthBefore,
+                        widthAfter: block.TextLayout.WidthIncludingTrailingWhitespace,
+                        text: string.Concat(runs.Select(static run => run.Text.ToString())),
+                        properties: runs.Select(static run => run.Properties).ToArray(),
+                        brushes: runs.Select(static run => run.Properties.ForegroundBrush).ToArray(),
+                        highlightForeground,
+                        selectionForeground);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.widthAfter, Is.EqualTo(result.widthBefore).Within(1e-9));
+                Assert.That(result.text, Is.EqualTo("code"));
+                Assert.That(result.properties, Has.All.Property(nameof(TextRunProperties.FontRenderingEmSize)).EqualTo(22));
+                Assert.That(result.properties.All(properties => properties.BackgroundBrush is null), Is.True);
+                Assert.That(result.brushes.Count(brush => ReferenceEquals(brush, result.highlightForeground)), Is.EqualTo(2));
+                Assert.That(result.brushes.Count(brush => ReferenceEquals(brush, result.selectionForeground)), Is.EqualTo(1));
+            });
     }
 
     [Test]
@@ -907,6 +1214,11 @@ public class MarkdownPointerSelectionTests
                     line.Height))
             .ToArray());
 
+    private static SourceSlice GetSourceSlice(ReadOnlyMemory<char> text, string expectedSource) =>
+        MemoryMarshal.TryGetString(text, out var source, out var start, out var length)
+            ? new SourceSlice(start, length, string.Equals(source, expectedSource, StringComparison.Ordinal))
+            : new SourceSlice(-1, text.Length, false);
+
     private static IEnumerable<GeometryDrawing> EnumerateGeometryDrawings(Drawing drawing)
     {
         if (drawing is GeometryDrawing geometryDrawing)
@@ -931,6 +1243,11 @@ public class MarkdownPointerSelectionTests
     private readonly record struct LayoutSnapshot(double Width, double Height, IReadOnlyList<LineSnapshot> Lines);
 
     private readonly record struct LineSnapshot(int FirstTextSourceIndex, int Length, double Width, double Height);
+
+    private readonly record struct SourceSlice(int Start, int Length, bool MatchesSource)
+    {
+        public int End => Start + Length;
+    }
 
     private sealed class TestMarkdownRenderer : MarkdownRenderer
     {
