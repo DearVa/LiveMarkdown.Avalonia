@@ -206,7 +206,23 @@ public partial class MarkdownRenderer : Control
     private MarkdownTextProjection? _renderedTextProjection;
 
     private readonly DocumentNode documentNode;
-    private readonly MarkdownPipeline pipeline = CreatePipeline();
+    /// <summary>
+    /// The parse pipeline, built once per process rather than once per renderer.
+    /// </summary>
+    /// <remarks>
+    /// <para>Every renderer built an identical pipeline: <see cref="ConfigurePipeline"/> is documented as
+    /// "set before any instances are created", so no two copies could ever differ. Each costs about 26 us
+    /// to build and retains roughly 38 KB of parser tables for the renderer's lifetime — which, in a chat
+    /// UI, is the lifetime of the message.</para>
+    /// <para>Lazily initialised on purpose: <c>ConfigurePipeline += ...</c> is itself the first touch of
+    /// this type, so a plain static initialiser would run <see cref="CreatePipeline"/> before the caller's
+    /// handler finished registering and silently drop its extensions.</para>
+    /// <para>Sharing is safe because concurrent parses share parser INSTANCES only, which Markdig
+    /// supports. Extensions added through <see cref="ConfigurePipeline"/> must therefore hold no per-parse
+    /// instance state.</para>
+    /// </remarks>
+    private static readonly Lazy<MarkdownPipeline> pipeline =
+        new(CreatePipeline, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
     /// Optional callback to configure the Markdig pipeline before it is built.
@@ -316,7 +332,7 @@ public partial class MarkdownRenderer : Control
                 }
 
                 var time = DateTimeOffset.UtcNow;
-                var document = await Task.Run(() => Markdown.Parse(currentSnapshot.Text, pipeline), cancellationToken);
+                var document = await Task.Run(() => Markdown.Parse(currentSnapshot.Text, pipeline.Value), cancellationToken);
 
                 cancellationToken.ThrowIfCancellationRequested();
                 Dispatcher.UIThread.VerifyAccess();
