@@ -18,13 +18,13 @@ public sealed class PointerInteractionDiagnosticsTests
     [SetUp]
     public void SetUp()
     {
-        session = HeadlessUnitTestSession.StartNew(typeof(MarkdownPointerSelectionTests.StyledTestApplication));
+        session = HeadlessSession.Current;
     }
 
     [TearDown]
     public void TearDown()
     {
-        session.Dispose();
+        // Deliberately NOT disposed: the session is shared for the whole assembly.
     }
 
     [Test]
