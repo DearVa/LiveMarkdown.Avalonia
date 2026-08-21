@@ -24,7 +24,7 @@ namespace LiveMarkdown.Avalonia;
 /// This class extends <see cref="SelectableTextBlock"/> to fix its selection bugs.
 /// </summary>
 [PseudoClasses(":pointerover-link")]
-public class MarkdownTextBlock : SelectableTextBlock
+public partial class MarkdownTextBlock : SelectableTextBlock
 {
     /// <summary>
     /// Defines whether the target visual is a shared text selection scope.
@@ -875,6 +875,7 @@ public class MarkdownTextBlock : SelectableTextBlock
                         new CodeInlineSpan(
                             start,
                             text.Length,
+                            codeInline,
                             codeInline.Background,
                             codeInline.CornerRadius,
                             codeInline.Padding,
@@ -1001,6 +1002,7 @@ public class MarkdownTextBlock : SelectableTextBlock
     private readonly record struct CodeInlineSpan(
         int Start,
         int Length,
+        CodeInline Source,
         IBrush? Background,
         CornerRadius CornerRadius,
         Thickness Padding,

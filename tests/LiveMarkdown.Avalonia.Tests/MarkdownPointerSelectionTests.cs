@@ -25,13 +25,15 @@ public class MarkdownPointerSelectionTests
     [OneTimeSetUp]
     public void StartSession()
     {
-        session = HeadlessUnitTestSession.StartNew(typeof(StyledTestApplication));
+        session = HeadlessSession.Current;
     }
 
     [OneTimeTearDown]
     public void StopSession()
     {
-        session.Dispose();
+        // Deliberately NOT disposed. The session is shared for the whole assembly (see HeadlessSession),
+        // and this fixture is not the last one to use it — tearing it down here kills the application
+        // that PointerInteractionDiagnosticsTests is about to dispatch onto.
     }
 
     [TestCase(2, "doubleclick")]
