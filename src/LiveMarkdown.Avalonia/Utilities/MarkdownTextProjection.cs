@@ -62,8 +62,6 @@ public class MarkdownTextProjector
     /// </summary>
     protected static readonly StringSlice ObjectReplacementText = new(MarkdownTextProjection.ObjectReplacementCharacter.ToString());
 
-    private readonly MarkdownPipeline pipeline = MarkdownRenderer.CreatePipeline();
-
     /// <summary>
     /// Parses and projects a committed Markdown snapshot synchronously.
     /// </summary>
@@ -73,7 +71,7 @@ public class MarkdownTextProjector
     public MarkdownTextProjection Project(ObservableStringBuilderSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var document = Markdown.Parse(snapshot.Text, pipeline);
+        var document = Markdown.Parse(snapshot.Text, MarkdownUpdateProducer.DefaultPipeline);
         var buffers = new List<MarkdownTextBuffer>();
         AppendBlocks(document, buffers, cancellationToken);
         return new MarkdownTextProjection(snapshot.Version, buffers);

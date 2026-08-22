@@ -155,6 +155,33 @@ markdownBuilder.Clear();
 
 Note that `MarkdownBuilder` is designed for efficient updates, but is NOT thread-safe. Make sure to update it on the UI thread.
 
+Applications that own or cache the parsed syntax tree can use `DocumentUpdate` instead. Parsing may run on a
+background thread; assign the completed update on the UI thread. Assignment synchronously updates the renderer's
+visual children even before the control is attached, so its first measure sees the complete document.
+
+```csharp
+var document = await Task.Run(() => Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
+var update = new MarkdownDocumentUpdate.Full(document);
+MarkdownRenderer.DocumentUpdate = update;
+```
+
+A published document must be treated as immutable. `MarkdownBuilder` remains the primary streaming API. It is a
+convenience proxy to the renderer's lazily created `MarkdownUpdateProducer`, which parses snapshots in the background
+and publishes a full update followed by incremental updates. The producer observes and parses its source while it has
+subscribers, and synchronously replays its latest valid update to a new subscriber.
+Custom producers can implement `IMarkdownUpdateProducer` and publish the same update values from another source.
+
+An application-owned producer can instead be assigned to `UpdateProducer`. The renderer manages only its subscription:
+
+```csharp
+var producer = new MarkdownUpdateProducer
+{
+    Pipeline = customPipeline,
+    MarkdownBuilder = markdownBuilder,
+};
+renderer.UpdateProducer = producer;
+```
+
 If you want to load local images with relative paths, you can set the `MarkdownRenderer.ImageBasePath` property.
 
 ### 4. Search text and customize highlights

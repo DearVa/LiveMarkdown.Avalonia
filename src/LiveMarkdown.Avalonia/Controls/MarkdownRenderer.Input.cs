@@ -108,7 +108,6 @@ public partial class MarkdownRenderer
     /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        currentCancellationTokenSource.Cancel();
         EndPointerInteraction();
         ClearContextMenuCandidate();
         ClearPointerOverBlock();

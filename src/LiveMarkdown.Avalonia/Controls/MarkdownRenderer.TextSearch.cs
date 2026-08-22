@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.VisualTree;
 using Markdig.Helpers;
 
@@ -40,15 +41,39 @@ partial class MarkdownRenderer
     public const string DefaultTextSearchHighlightName = "search-results";
 
     /// <summary>
+    /// Defines the <see cref="RenderedTextProjection"/> property.
+    /// </summary>
+    public static readonly DirectProperty<MarkdownRenderer, MarkdownTextProjection?> RenderedTextProjectionProperty =
+        AvaloniaProperty.RegisterDirect<MarkdownRenderer, MarkdownTextProjection?>(
+            nameof(RenderedTextProjection),
+            renderer => renderer.RenderedTextProjection);
+
+    /// <summary>
+    /// Gets the searchable text buffers produced by the most recently committed render.
+    /// </summary>
+    public MarkdownTextProjection? RenderedTextProjection
+    {
+        get;
+        private set => SetAndRaise(RenderedTextProjectionProperty, ref field, value);
+    }
+
+    /// <summary>
+    /// Defines the <see cref="TextSearchMatches"/> property.
+    /// </summary>
+    public static readonly DirectProperty<MarkdownRenderer, IReadOnlyList<TextHighlightMatch>> TextSearchMatchesProperty =
+        AvaloniaProperty.RegisterDirect<MarkdownRenderer, IReadOnlyList<TextHighlightMatch>>(
+        nameof(TextSearchMatches),
+        o => o.TextSearchMatches);
+
+    /// <summary>
     /// Gets the matches produced by the last <see cref="ApplyTextSearch(string?, string, int)"/> call.
     /// Each match points to the concrete text block and uses that block's local UTF-16 coordinates.
     /// </summary>
-    public IReadOnlyList<TextHighlightMatch> TextSearchMatches { get; private set; } = [];
-
-    /// <summary>
-    /// Raised after the active text search results have been replaced or cleared.
-    /// </summary>
-    public event EventHandler? TextSearchMatchesChanged;
+    public IReadOnlyList<TextHighlightMatch> TextSearchMatches
+    {
+        get;
+        private set => SetAndRaise(TextSearchMatchesProperty, ref field, value);
+    } = [];
 
     private TextSearchMatcher? _textSearchMatcher;
     private string _textSearchHighlightName = DefaultTextSearchHighlightName;
@@ -160,7 +185,6 @@ partial class MarkdownRenderer
         }
 
         TextSearchMatches = [];
-        TextSearchMatchesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private IReadOnlyList<MarkdownTextBlock> GetTextBlocksInRenderer()
@@ -196,23 +220,18 @@ partial class MarkdownRenderer
         InvalidateArrange();
     }
 
-    private void SchedulePendingRenderedTextStateRefresh()
-    {
-        if (_pendingRenderedTextStateVersion is not null) InvalidateArrange();
-    }
-
     private void RefreshRenderedTextState()
     {
         if (VisualRoot is null || _pendingRenderedTextStateVersion is not { } sourceVersion) return;
 
-        if (MarkdownBuilder is not { } builder || builder.Version != sourceVersion)
+        if (MarkdownBuilder is { } builder && builder.Version != sourceVersion)
         {
             _pendingRenderedTextStateVersion = null;
             return;
         }
 
         _pendingRenderedTextStateVersion = null;
-        SetRenderedTextProjection(CreateRenderedTextProjection(sourceVersion));
+        RenderedTextProjection = CreateRenderedTextProjection(sourceVersion);
         ApplyTextSearchCore();
     }
 
@@ -276,7 +295,6 @@ partial class MarkdownRenderer
         _textSearchAppliedBlocks = [.. pendingRanges.Keys];
         _textSearchAppliedHighlightName = pendingRanges.Count > 0 ? _textSearchHighlightName : null;
         TextSearchMatches = matches;
-        TextSearchMatchesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private IReadOnlyList<TextHighlightMatch> ApplyTextSearch<TState>(
@@ -343,5 +361,4 @@ partial class MarkdownRenderer
         normalizedRanges.Add(current);
         return normalizedRanges;
     }
-
 }

@@ -859,7 +859,7 @@ public class MarkdownPointerSelectionTests
                 try
                 {
                     window.Show();
-                    var document = Markdown.Parse(markdown, MarkdownRenderer.CreatePipeline());
+                    var document = Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline);
                     documentNode.Update(
                         documentNode,
                         document,

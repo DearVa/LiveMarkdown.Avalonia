@@ -7,8 +7,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
 using Avalonia.Logging;
-using Avalonia.Threading;
-using Markdig;
 using TextMateSharp.Grammars;
 
 namespace LiveMarkdown.Avalonia;
@@ -46,64 +44,23 @@ public partial class MarkdownRenderer : Control
     public static string? GetSelectionScopeName(Visual obj) => obj.GetValue(SelectionScopeNameProperty);
 
     /// <summary>
-    /// Defines the <see cref="MarkdownBuilder"/> property.
+    /// Defines the <see cref="DocumentUpdate"/> property.
     /// </summary>
-    public static readonly DirectProperty<MarkdownRenderer, ObservableStringBuilder?> MarkdownBuilderProperty =
-        AvaloniaProperty.RegisterDirect<MarkdownRenderer, ObservableStringBuilder?>(
-            nameof(MarkdownBuilder),
-            o => o.MarkdownBuilder,
-            (o, v) => o.MarkdownBuilder = v);
+    public static readonly DirectProperty<MarkdownRenderer, MarkdownDocumentUpdate?> DocumentUpdateProperty =
+        AvaloniaProperty.RegisterDirect<MarkdownRenderer, MarkdownDocumentUpdate?>(
+            nameof(DocumentUpdate),
+            o => o.DocumentUpdate,
+            (o, v) => o.DocumentUpdate = v);
 
     /// <summary>
-    /// An <see cref="ObservableStringBuilder"/> containing the Markdown text to render.
-    /// If set, the control will listen to changes in the builder and update the rendering accordingly.
+    /// Gets or applies a parsed Markdown document update.
+    /// The update may be created on any thread, but must be assigned on the UI thread.
     /// </summary>
-    public ObservableStringBuilder? MarkdownBuilder
+    public MarkdownDocumentUpdate? DocumentUpdate
     {
-        get;
-        set
-        {
-            var oldValue = field;
-            if (!SetAndRaise(MarkdownBuilderProperty, ref field, value)) return;
-
-            if (oldValue is not null) oldValue.Changed -= CommitChange;
-
-            // A builder replacement invalidates any parse started for the old builder.
-            // Keep the new builder's changes independent from the old version sequence.
-            var oldCancellation = currentCancellationTokenSource;
-            currentCancellationTokenSource = new CancellationTokenSource();
-            oldCancellation.Cancel();
-            oldCancellation.Dispose();
-            pendingChange = null;
-            _pendingRenderedTextStateVersion = null;
-            SetRenderedTextProjection(null);
-
-            if (value is not null)
-            {
-                value.Changed += CommitChange;
-                CommitChange(new ObservableStringBuilderChangedEventArgs(0, value.Length, value.Length, value.Version));
-            }
-        }
+        get => documentUpdate;
+        set => ApplyDocumentUpdate(value);
     }
-
-    /// <summary>
-    /// Defines the <see cref="RenderedTextProjection"/> property.
-    /// </summary>
-    public static readonly DirectProperty<MarkdownRenderer, MarkdownTextProjection?> RenderedTextProjectionProperty =
-        AvaloniaProperty.RegisterDirect<MarkdownRenderer, MarkdownTextProjection?>(
-            nameof(RenderedTextProjection),
-            renderer => renderer.RenderedTextProjection);
-
-    /// <summary>
-    /// Gets the searchable text buffers produced by the most recently committed render.
-    /// </summary>
-    public MarkdownTextProjection? RenderedTextProjection => _renderedTextProjection;
-
-    /// <summary>
-    /// Gets the content version represented by the current visual tree, or <see langword="null"/>
-    /// before the first render of the current builder completes.
-    /// </summary>
-    public long? RenderedVersion => RenderedTextProjection?.SourceVersion;
 
     /// <summary>
     /// Defines the <see cref="ImageBasePath"/> property.
@@ -181,11 +138,6 @@ public partial class MarkdownRenderer : Control
     }
 
     /// <summary>
-    /// Raised after the searchable text projection for the rendered visual tree changes.
-    /// </summary>
-    public event EventHandler? RenderedTextProjectionChanged;
-
-    /// <summary>
     /// Defines the <see cref="LinkCommand"/> property.
     /// </summary>
     public static readonly StyledProperty<ICommand?> LinkCommandProperty =
@@ -200,28 +152,9 @@ public partial class MarkdownRenderer : Control
         set => SetValue(LinkCommandProperty, value);
     }
 
-    private ObservableStringBuilderChangedEventArgs? pendingChange;
-    private Task? renderTask;
-    private CancellationTokenSource currentCancellationTokenSource = new();
-    private MarkdownTextProjection? _renderedTextProjection;
+    private MarkdownDocumentUpdate? documentUpdate;
 
     private readonly DocumentNode documentNode;
-    private readonly MarkdownPipeline pipeline = CreatePipeline();
-
-    /// <summary>
-    /// Optional callback to configure the Markdig pipeline before it is built.
-    /// Set this before any MarkdownRenderer instances are created.
-    /// </summary>
-    public static event Action<MarkdownPipelineBuilder>? ConfigurePipeline;
-
-    internal static MarkdownPipeline CreatePipeline()
-    {
-        var builder = new MarkdownPipelineBuilder()
-            .UseAdvancedExtensions()
-            .UseCodeBlockSpanFixer();
-        ConfigurePipeline?.Invoke(builder);
-        return builder.Build();
-    }
 
     internal static readonly ParametrizedLogger? VerboseLogger;
 
@@ -258,153 +191,58 @@ public partial class MarkdownRenderer : Control
     }
 
     /// <inheritdoc/>
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-        EnsureRenderLoopStarted();
-        SchedulePendingRenderedTextStateRefresh();
-    }
-
-    /// <inheritdoc/>
     protected override void ArrangeCore(Rect finalRect)
     {
-        // ArrangeCore must remain synchronous.  Avalonia marks an arrange as valid
-        // around this call, so awaiting here would let a stale continuation update
-        // the visual tree after a later arrange has already completed.
-        EnsureRenderLoopStarted();
         base.ArrangeCore(finalRect);
         RefreshRenderedTextState();
     }
 
-    private void EnsureRenderLoopStarted()
+    private void ApplyDocumentUpdate(MarkdownDocumentUpdate? value)
     {
-        Dispatcher.UIThread.VerifyAccess();
+        Dispatcher.VerifyAccess();
 
-        if (pendingChange is null) return;
-        if (renderTask is { IsCompleted: false }) return;
+        var previous = documentUpdate;
+        if (!SetAndRaise(DocumentUpdateProperty, ref documentUpdate, value)) return;
 
-        renderTask = null;
-        if (currentCancellationTokenSource.IsCancellationRequested)
+        // Build detached renderers too, so attaching or realizing one never exposes an
+        // intermediate empty tree before its first measure.
+        if (value != null)
         {
-            var oldCancellationTokenSource = currentCancellationTokenSource;
-            currentCancellationTokenSource = new CancellationTokenSource();
-            oldCancellationTokenSource.Dispose();
-        }
+            var change = value is MarkdownDocumentUpdate.Incremental incremental && previous is not null && incremental.Follows(previous)
+                ? value.Change
+                : new ObservableStringBuilderChangedEventArgs(
+                    0,
+                    Math.Max(previous?.Document.GetLength() ?? 0, value.Document.GetLength()),
+                    value.Document.GetLength(),
+                    value.Version);
 
-        renderTask = RenderPendingChangesAsync(currentCancellationTokenSource.Token);
-    }
-
-    private async Task RenderPendingChangesAsync(CancellationToken cancellationToken)
-    {
-        ObservableStringBuilder? currentBuilder = null;
-        ObservableStringBuilderSnapshot currentSnapshot = default;
-        ObservableStringBuilderChangedEventArgs currentChange = default;
-
-        try
-        {
-            while (pendingChange is { } change)
-            {
-                currentChange = change;
-                currentBuilder = MarkdownBuilder;
-                cancellationToken.ThrowIfCancellationRequested();
-
-                currentSnapshot = currentBuilder?.CaptureSnapshot() ??
-                    new ObservableStringBuilderSnapshot(string.Empty, currentChange.Version);
-                if (currentSnapshot.Version != currentChange.Version)
-                {
-                    continue;
-                }
-
-                var time = DateTimeOffset.UtcNow;
-                var document = await Task.Run(() => Markdown.Parse(currentSnapshot.Text, pipeline), cancellationToken);
-
-                cancellationToken.ThrowIfCancellationRequested();
-                Dispatcher.UIThread.VerifyAccess();
-
-                // The source may have changed while parsing.  Leave the aggregate
-                // pending change intact and parse the latest snapshot instead.
-                if (!ReferenceEquals(currentBuilder, MarkdownBuilder) ||
-                    pendingChange is not { } latestChange ||
-                    latestChange.Version != currentChange.Version)
-                {
-                    continue;
-                }
-
-                if (VerboseLogger?.IsValid is true)
-                {
-                    VerboseLogger.Value.Log(this, "Parse markdown in {TotalMicroseconds} ms.", (DateTimeOffset.UtcNow - time).TotalMilliseconds);
-                }
-
-                time = DateTimeOffset.UtcNow;
-                documentNode.Update(documentNode, document, currentChange, CancellationToken.None);
-                // UpdateCore can invoke user code while controls are being
-                // rebuilt.  Do not discard a change committed reentrantly.
-                if (ReferenceEquals(currentBuilder, MarkdownBuilder) &&
-                    pendingChange is { } appliedChange &&
-                    appliedChange.Version == currentChange.Version)
-                {
-                    pendingChange = null;
-                }
-
-                InvalidateTextBlockCache();
-                ScheduleRenderedTextStateRefresh(currentSnapshot.Version);
-                InvalidateMeasure();
-
-                if (VerboseLogger?.IsValid is true)
-                {
-                    VerboseLogger.Value.Log(this, "Render markdown in {TotalMicroseconds} ms.", (DateTimeOffset.UtcNow - time).TotalMilliseconds);
-                }
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            // A parse failure for the current snapshot should not cause an
-            // invalidation/retry loop.  A newer change, if any, is retained.
-            if (pendingChange is { } latestChange &&
-                latestChange.Version == currentChange.Version &&
-                ReferenceEquals(currentBuilder, MarkdownBuilder))
-            {
-                pendingChange = null;
-            }
+            var time = DateTimeOffset.UtcNow;
+            documentNode.Update(documentNode, value.Document, change, CancellationToken.None);
 
             if (VerboseLogger?.IsValid is true)
             {
-                VerboseLogger.Value.Log(this, "Error rendering markdown: {Message}", ex.Message);
+                VerboseLogger.Value.Log(
+                    this,
+                    "Render markdown in {TotalMilliseconds} ms.",
+                    (DateTimeOffset.UtcNow - time).TotalMilliseconds);
             }
         }
-        finally
-        {
-            renderTask = null;
-            if (VisualRoot is not null && pendingChange is not null)
-            {
-                EnsureRenderLoopStarted();
-            }
-        }
-    }
-
-    private void CommitChange(in ObservableStringBuilderChangedEventArgs e)
-    {
-        Dispatcher.UIThread.VerifyAccess();
-
-        if (pendingChange is null) pendingChange = e;
         else
         {
-            var startIndex = Math.Min(pendingChange.Value.StartIndex, e.StartIndex);
-            var endIndex = Math.Max(pendingChange.Value.StartIndex + pendingChange.Value.Length, e.StartIndex + e.Length);
-            pendingChange = new ObservableStringBuilderChangedEventArgs(
-                startIndex,
-                endIndex - startIndex,
-                e.NewLength,
-                e.Version);
+            documentNode.Clear();
         }
 
-        InvalidateArrange();
-    }
+        RenderedTextProjection = null;
+        InvalidateTextBlockCache();
+        if (value is not null)
+        {
+            ScheduleRenderedTextStateRefresh(value.Version);
+        }
+        else
+        {
+            _pendingRenderedTextStateVersion = null;
+        }
 
-    private void SetRenderedTextProjection(MarkdownTextProjection? value)
-    {
-        if (!SetAndRaise(RenderedTextProjectionProperty, ref _renderedTextProjection, value)) return;
-        RenderedTextProjectionChanged?.Invoke(this, EventArgs.Empty);
+        InvalidateMeasure();
     }
 }

@@ -51,4 +51,9 @@ public sealed class DocumentNode : ContainerBlockNode<MarkdownDocument>
 
         return result;
     }
+
+    /// <summary>
+    /// Removes all rendered block nodes from the document.
+    /// </summary>
+    public void Clear() => proxy.Clear();
 }

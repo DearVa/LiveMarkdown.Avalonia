@@ -72,4 +72,9 @@ public static class MarkdownExtensions
                 Math.Max(span.End, processor.Line.End));
         }
     }
+
+    internal static int GetLength(this MarkdownDocument? document)
+    {
+        return document is null || document.Span.IsEmpty ? 0 : document.Span.End + 1;
+    }
 }
