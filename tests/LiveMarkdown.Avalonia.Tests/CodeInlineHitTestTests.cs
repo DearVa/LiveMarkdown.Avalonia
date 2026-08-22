@@ -45,7 +45,7 @@ public class CodeInlineHitTestTests
     /// <summary>The centre of the chip's own painted rect — the point a user would actually be over.</summary>
     private static Point CentreOf(MarkdownTextBlock block, CodeInline chip)
     {
-        var rects = block.CodeInlineRects(chip);
+        var rects = block.GetCodeInlineRects(chip);
         Assert.That(rects, Is.Not.Empty, "the chip must have been laid out for this test to mean anything");
         return rects[0].Center;
     }
@@ -55,19 +55,19 @@ public class CodeInlineHitTestTests
     {
         var (block, chip, _) = Build();
 
-        Assert.That(block.CodeInlineAt(CentreOf(block, chip)), Is.SameAs(chip));
+        Assert.That(block.GetCodeInlineAt(CentreOf(block, chip)), Is.SameAs(chip));
     }, CancellationToken.None).GetAwaiter().GetResult();
 
     [Test]
     public void A_Point_On_The_PROSE_Finds_Nothing() => session.Dispatch(() =>
     {
         var (block, chip, _) = Build();
-        var chipRect = block.CodeInlineRects(chip)[0];
+        var chipRect = block.GetCodeInlineRects(chip)[0];
 
         // Just left of the chip is the leading "before " run.
         var inProse = new Point(Math.Max(1, chipRect.X - 6), chipRect.Center.Y);
 
-        Assert.That(block.CodeInlineAt(inProse), Is.Null,
+        Assert.That(block.GetCodeInlineAt(inProse), Is.Null,
             "prose beside a chip must not report the chip, or the whole line becomes clickable");
     }, CancellationToken.None).GetAwaiter().GetResult();
 
@@ -80,11 +80,11 @@ public class CodeInlineHitTestTests
     public void Empty_Space_Past_A_Trailing_Chip_Finds_Nothing() => session.Dispatch(() =>
     {
         var (block, chip, _) = Build(before: "x ", chipText: "tail", after: "");
-        var chipRect = block.CodeInlineRects(chip)[0];
+        var chipRect = block.GetCodeInlineRects(chip)[0];
 
         var pastTheEnd = new Point(chipRect.Right + 200, chipRect.Center.Y);
 
-        Assert.That(block.CodeInlineAt(pastTheEnd), Is.Null);
+        Assert.That(block.GetCodeInlineAt(pastTheEnd), Is.Null);
     }, CancellationToken.None).GetAwaiter().GetResult();
 
     [Test]
@@ -92,7 +92,7 @@ public class CodeInlineHitTestTests
     {
         var (block, chip, _) = Build();
 
-        Assert.That(block.CodeInlineAt(new Point(CentreOf(block, chip).X, 250)), Is.Null);
+        Assert.That(block.GetCodeInlineAt(new Point(CentreOf(block, chip).X, 250)), Is.Null);
     }, CancellationToken.None).GetAwaiter().GetResult();
 
     [Test]
@@ -108,8 +108,8 @@ public class CodeInlineHitTestTests
         var window = new Window { Width = 600, Height = 300, Content = block };
         window.Show();   // headless Show() runs the initial layout pass, which is what builds TextLayout
 
-        Assert.That(block.CodeInlineAt(block.CodeInlineRects(first)[0].Center), Is.SameAs(first));
-        Assert.That(block.CodeInlineAt(block.CodeInlineRects(second)[0].Center), Is.SameAs(second));
+        Assert.That(block.GetCodeInlineAt(block.GetCodeInlineRects(first)[0].Center), Is.SameAs(first));
+        Assert.That(block.GetCodeInlineAt(block.GetCodeInlineRects(second)[0].Center), Is.SameAs(second));
     }, CancellationToken.None).GetAwaiter().GetResult();
 
     [Test]
@@ -118,8 +118,8 @@ public class CodeInlineHitTestTests
         var (shortBlock, shortChip, _) = Build(before: "a ");
         var (longBlock, longChip, _) = Build(before: "a much much longer preamble than that one ");
 
-        var near = shortBlock.CodeInlineRects(shortChip)[0];
-        var far = longBlock.CodeInlineRects(longChip)[0];
+        var near = shortBlock.GetCodeInlineRects(shortChip)[0];
+        var far = longBlock.GetCodeInlineRects(longChip)[0];
 
         Assert.That(far.X, Is.GreaterThan(near.X),
             "the rect must track where the chip actually sits — a caller positions an affordance off it");
@@ -133,7 +133,7 @@ public class CodeInlineHitTestTests
         var (block, _, _) = Build();
         var stranger = new CodeInline { Text = "elsewhere" };
 
-        Assert.That(block.CodeInlineRects(stranger), Is.Empty);
+        Assert.That(block.GetCodeInlineRects(stranger), Is.Empty);
     }, CancellationToken.None).GetAwaiter().GetResult();
 
     /// <summary>A chip that wraps reports one rect per line, so a caller can attach to the last fragment rather
@@ -147,7 +147,7 @@ public class CodeInlineHitTestTests
             after: " suffix",
             width: 120);
 
-        var rects = block.CodeInlineRects(chip);
+        var rects = block.GetCodeInlineRects(chip);
 
         Assert.That(rects, Is.Not.Empty);
         if (rects.Count > 1)

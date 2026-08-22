@@ -844,7 +844,11 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         return _paintSnapshot;
     }
 
-    private CodeInlineSpan[] GetCodeInlineSpans()
+    /// <summary>
+    /// Gets the code inline spans in this text block, including nested inline content.
+    /// </summary>
+    /// <returns></returns>
+    public CodeInlineSpan[] GetCodeInlineSpans()
     {
         if (Inlines is not { Count: > 0 } inlines)
         {
@@ -999,7 +1003,17 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         }
     }
 
-    private readonly record struct CodeInlineSpan(
+    /// <summary>
+    /// Represents a code inline span in the text block, including its source inline and visual properties.
+    /// </summary>
+    /// <param name="Start"></param>
+    /// <param name="Length"></param>
+    /// <param name="Source"></param>
+    /// <param name="Background"></param>
+    /// <param name="CornerRadius"></param>
+    /// <param name="Padding"></param>
+    /// <param name="Margin"></param>
+    public readonly record struct CodeInlineSpan(
         int Start,
         int Length,
         CodeInline Source,

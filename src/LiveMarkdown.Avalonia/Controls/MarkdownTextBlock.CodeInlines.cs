@@ -1,4 +1,6 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media.TextFormatting;
 
 namespace LiveMarkdown.Avalonia;
@@ -19,6 +21,14 @@ namespace LiveMarkdown.Avalonia;
 public partial class MarkdownTextBlock
 {
     /// <summary>
+    /// the <see cref="TextLayout"/> property will create a new layout if it is null, may cause a side effect.
+    /// </summary>
+    /// <param name="block"></param>
+    /// <returns></returns>
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_textLayout")]
+    private static extern ref TextLayout? GetTextLayout(TextBlock block);
+
+    /// <summary>
     /// The inline-code chip at <paramref name="point"/> (in this block's coordinates), or null when the point
     /// is not on one.
     /// </summary>
@@ -30,13 +40,13 @@ public partial class MarkdownTextBlock
     /// chip's first index at x=106. For "is the pointer on the chip" the answer has to be the thing the user can
     /// see, which is the background rect.
     /// </remarks>
-    public CodeInline? CodeInlineAt(Point point)
+    public CodeInline? GetCodeInlineAt(Point point)
     {
-        if (TextLayout is null) return null;
+        if (GetTextLayout(this) is not { } textLayout) return null;
 
         foreach (var span in GetCodeInlineSpans())
         {
-            foreach (var rect in RectsFor(span))
+            foreach (var rect in GetCodeInlineSpanRects(textLayout, span))
             {
                 if (rect.Contains(point)) return span.Source;
             }
@@ -51,11 +61,13 @@ public partial class MarkdownTextBlock
     /// why this returns a list rather than a single rect — a caller positioning an affordance against the chip's
     /// end wants the LAST one, not a union that spans the gutter.
     /// </summary>
-    public IReadOnlyList<Rect> CodeInlineRects(CodeInline inline)
+    public IReadOnlyList<Rect> GetCodeInlineRects(CodeInline inline)
     {
+        if (GetTextLayout(this) is not { } textLayout) return [];
+
         foreach (var span in GetCodeInlineSpans())
         {
-            if (ReferenceEquals(span.Source, inline)) return RectsFor(span);
+            if (ReferenceEquals(span.Source, inline)) return GetCodeInlineSpanRects(textLayout, span);
         }
 
         return [];
@@ -64,13 +76,13 @@ public partial class MarkdownTextBlock
     /// <summary>The painted rects for one span: the glyph band grown by the chip's own padding, which is what
     /// the block fills when it draws the background — so a caller's hit area and affordance both line up with
     /// what is on screen rather than with the text alone.</summary>
-    private IReadOnlyList<Rect> RectsFor(CodeInlineSpan span)
+    private static List<Rect> GetCodeInlineSpanRects(TextLayout textLayout, CodeInlineSpan span)
     {
-        if (TextLayout is not { } layout || span.Length <= 0) return [];
+        if (span.Length <= 0) return [];
 
         List<Rect>? rects = null;
         var y = 0d;
-        foreach (var line in layout.TextLines)
+        foreach (var line in textLayout.TextLines)
         {
             var lineStart = line.FirstTextSourceIndex;
             var start = Math.Max(span.Start, lineStart);
@@ -92,6 +104,6 @@ public partial class MarkdownTextBlock
             y += line.Height;
         }
 
-        return rects is null ? [] : rects;
+        return rects ?? [];
     }
 }
