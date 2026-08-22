@@ -6,6 +6,8 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Metadata;
+using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Logging;
 using TextMateSharp.Grammars;
 
@@ -188,6 +190,19 @@ public partial class MarkdownRenderer : Control
         VisualChildren.Add(documentNode.Control);
 
         AddHandler(KeyDownEvent, HandleKeyDown);
+        // A left press drops the selection, as every OS text surface does. TUNNEL phase with
+        // handledEventsToo, because a press landing on something that HANDLES it — a button, an
+        // expander chevron, an embedded control such as the Mermaid or Svg nodes — never reaches the
+        // bubbling selection logic, and the highlight would just sit there.
+        AddHandler(PointerPressedEvent, ClearSelectionOnPress, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private void ClearSelectionOnPress(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (string.IsNullOrEmpty(SelectedText)) return;
+        ClearSelection(GetAllSelectableBlocksInScope(GetSelectionScopeRoot()));
+        UpdateCanCopy();
     }
 
     /// <inheritdoc/>

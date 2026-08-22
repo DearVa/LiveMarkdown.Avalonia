@@ -241,7 +241,7 @@ public partial class MarkdownRenderer
         }
 
         TrackSelectionPointer(e);
-        UpdateSelectionRangeFromPoint(e.GetPosition(this));
+        UpdateSelectionRangeFromPoint(point.Position);
 
         e.Handled = true;
 
@@ -997,12 +997,15 @@ public partial class MarkdownRenderer
     {
         // We want all blocks, including nested ones, because hierarchy is handled by
         // GetEffectiveStart/GetEffectiveEnd. DFS order provides the document order.
-        if (scopeRoot is MarkdownRenderer renderer)
-        {
-            return renderer.GetSelectableBlocksInRenderer();
-        }
+        var blocks = scopeRoot is MarkdownRenderer renderer
+            ? renderer.GetSelectableBlocksInRenderer()
+            : scopeRoot.GetSelfAndVisualDescendants().OfType<MarkdownTextBlock>();
 
-        return scopeRoot.GetSelfAndVisualDescendants().OfType<MarkdownTextBlock>();
+        // Skip blocks inside a collapsed branch — a folded section, or a node's hidden alternate view — so
+        // select-all and copy never pick up text the reader cannot see. Filtered HERE rather than inside the
+        // cache above, because visibility changes WITHOUT a document change: an expander collapsing does not
+        // invalidate the block cache, so a filter baked into it would be stale.
+        return blocks.Where(b => b.IsEffectivelyVisible);
     }
 
     private static bool IsNestedBlock(MarkdownTextBlock child) => child.FindAncestorOfType<MarkdownTextBlock>() is not null;
