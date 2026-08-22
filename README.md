@@ -138,49 +138,23 @@ Add the `MarkdownRenderer` control to your `.axaml` file:
 </YourControl>
 ```
 
-Then you can manage the Markdown content in your code-behind:
+Then stream Markdown content through `MarkdownBuilder`:
 
 ```csharp
-// ObservableStringBuilder is used for efficient string updates
 var markdownBuilder = new ObservableStringBuilder();
 MarkdownRenderer.MarkdownBuilder = markdownBuilder;
 
-// Append Markdown content, this will trigger re-rendering
+// Append each chunk received from the streaming source.
 markdownBuilder.Append("# Hello, Markdown!");
 markdownBuilder.Append("\n\nThis is a **live** Markdown viewer for Avalonia applications.");
 
-// Clear the content
+// Clearing or replacing text also triggers a render update.
 markdownBuilder.Clear();
 ```
 
-Note that `MarkdownBuilder` is designed for efficient updates, but is NOT thread-safe. Make sure to update it on the UI thread.
-
-Applications that own or cache the parsed syntax tree can use `DocumentUpdate` instead. Parsing may run on a
-background thread; assign the completed update on the UI thread. Assignment synchronously updates the renderer's
-visual children even before the control is attached, so its first measure sees the complete document.
-
-```csharp
-var document = await Task.Run(() => Markdown.Parse(markdown, MarkdownUpdateProducer.DefaultPipeline));
-var update = new MarkdownDocumentUpdate.Full(document);
-MarkdownRenderer.DocumentUpdate = update;
-```
-
-A published document must be treated as immutable. `MarkdownBuilder` remains the primary streaming API. It is a
-convenience proxy to the renderer's lazily created `MarkdownUpdateProducer`, which parses snapshots in the background
-and publishes a full update followed by incremental updates. The producer observes and parses its source while it has
-subscribers, and synchronously replays its latest valid update to a new subscriber.
-Custom producers can implement `IMarkdownUpdateProducer` and publish the same update values from another source.
-
-An application-owned producer can instead be assigned to `UpdateProducer`. The renderer manages only its subscription:
-
-```csharp
-var producer = new MarkdownUpdateProducer
-{
-    Pipeline = customPipeline,
-    MarkdownBuilder = markdownBuilder,
-};
-renderer.UpdateProducer = producer;
-```
+`MarkdownBuilder` is the primary API for live output. Its change events let the renderer update the visual tree
+incrementally instead of treating every token as an unrelated document. `ObservableStringBuilder` is not thread-safe;
+update it on the Avalonia UI thread. See the FAQ for completed-document caching and application-owned parsing pipelines.
 
 If you want to load local images with relative paths, you can set the `MarkdownRenderer.ImageBasePath` property.
 
@@ -326,10 +300,11 @@ public sealed class AppMarkdownTextProjector : MarkdownTextProjector
 }
 ```
 
-`MarkdownRenderer.RenderedTextProjection` exposes the equivalent buffers produced by the realized visual tree.
-Listen to `RenderedTextProjectionChanged` when a consumer needs to replace an off-screen result with the authoritative
-rendered result. `MarkdownTextBuffer.SourceSpan` identifies the corresponding source range within that source version;
-it is not a stable identity across later edits.
+`MarkdownRenderer.RenderedTextProjection` exposes the equivalent buffers produced by the realized visual tree. It is an
+Avalonia DirectProperty; observe `RenderedTextProjectionProperty` through a binding, `GetObservable`, or
+`AvaloniaObject.PropertyChanged` when a consumer needs to replace an off-screen result with the authoritative rendered
+result. Its `SourceVersion` identifies the rendered source version. `MarkdownTextBuffer.SourceSpan` identifies the
+corresponding source range within that version; it is not a stable identity across later edits.
 
 The off-screen projector covers the built-in Markdown nodes. Registered custom inline nodes are represented as embedded
 objects, and custom nodes with specialized visual rendering may only be represented accurately by
@@ -663,9 +638,8 @@ Here is a sample style definition that customizes the emphasis styles and adds s
 
 ## 🤔 FAQ
 
-- Q: Wait, I just want to render a single Markdown string, why do I need to use `ObservableStringBuilder`?
-- A: `ObservableStringBuilder` is used for efficient string updates, especially in streaming scenarios. 
-  If you just want to bind to a single Markdown string, you can use the value converter as follows:
+- Q: Wait, I just want to render a single Markdown string. Why do I need `ObservableStringBuilder`?
+- A: You do not need to manage an `ObservableStringBuilder` yourself just to bind one string. Use the built-in value converter:
 
   ```xml
   <md:MarkdownRenderer MarkdownBuilder="{Binding MarkdownString, Converter={x:Static md:ValueConverters.ToObservableStringBuilder}}"/>
@@ -677,7 +651,64 @@ Here is a sample style definition that customizes the emphasis styles and adds s
   MarkdownRenderer.MarkdownBuilder = new ObservableStringBuilder(MarkdownString);
   ```
 
-  However, if you want to append content incrementally (e.g., streaming output from an LLM), `ObservableStringBuilder` is more efficient.
+  `ObservableStringBuilder` becomes valuable when content is arriving or may continue to change. It preserves
+  incremental change information and is the most efficient path for streaming output.
+
+  For completed, immutable content that may be realized repeatedly—such as conversation history in a virtualized
+  list—parse it once and keep the resulting `MarkdownDocumentUpdate` in the model. This trades memory for faster
+  realization because the renderer can reuse the parsed `MarkdownDocument` whenever the item comes back on screen.
+
+  ```csharp
+  public sealed class ChatMessage
+  {
+      public required string Content { get; init; }
+
+      public MarkdownDocumentUpdate? CachedDocumentUpdate { get; private set; }
+
+      public async Task PrepareDocumentAsync()
+      {
+          if (CachedDocumentUpdate is not null) return;
+
+          var content = Content;
+          CachedDocumentUpdate = await Task.Run(() =>
+          {
+              var document = Markdown.Parse(content, MarkdownUpdateProducer.DefaultPipeline);
+              return new MarkdownDocumentUpdate.Full(document);
+          });
+      }
+  }
+
+  await message.PrepareDocumentAsync();
+
+  // DocumentUpdate must be assigned on the Avalonia UI thread.
+  MarkdownRenderer.DocumentUpdate = message.CachedDocumentUpdate;
+  ```
+
+  `DocumentUpdate` can also be bound directly from a view model:
+
+  ```xml
+  <md:MarkdownRenderer DocumentUpdate="{Binding CachedDocumentUpdate}" />
+  ```
+
+  Assigning it synchronously updates the visual children even before the renderer is attached, so its first measure sees
+  the complete document. Treat every published `MarkdownDocument` as immutable. Release the cached update when
+  reclaiming memory is more valuable than avoiding a later reparse.
+
+- Q: How can I use a custom Markdown pipeline or own the update lifetime?
+- A: Assign an application-owned `MarkdownUpdateProducer`. `MarkdownBuilder` is a convenience proxy to the renderer's
+  lazily created producer, but it does not prevent replacing that producer:
+
+  ```csharp
+  renderer.UpdateProducer = new MarkdownUpdateProducer
+  {
+      Pipeline = customPipeline,
+      MarkdownBuilder = markdownBuilder,
+  };
+  ```
+
+  The producer observes and parses its source while it has subscribers and synchronously replays its latest valid update
+  to a new subscriber. The renderer owns only its subscription. Custom producers can implement
+  `IMarkdownUpdateProducer` and publish `MarkdownDocumentUpdate` values from another source.
 
 - Q: Why some emojis not rendered correctly (rendered in single color)?
 - A: This is a known issue caused by Skia (the render backend of Avalonia). You can upgrade SkiaSharp version (e.g. >=
