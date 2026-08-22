@@ -8,6 +8,15 @@
     <StyleInclude Source="avares://LiveMarkdown.Avalonia/Styles.axaml"/>
     <StyleInclude Source="avares://LiveMarkdown.Avalonia.Mermaid/Styles.axaml"/>
 
+    <!-- Opt in to dominant-axis wheel routing for the horizontal scrollers markdown creates. Nothing in
+         the library turns this on; this is the whole host-side cost of enabling it. -->
+    <Style Selector="ScrollViewer.Table">
+      <Setter Property="md:WheelAxisRouting.Enabled" Value="True"/>
+    </Style>
+    <Style Selector="md|CodeBlock /template/ ScrollViewer#PART_ScrollViewer">
+      <Setter Property="md:WheelAxisRouting.Enabled" Value="True"/>
+    </Style>
+
     <Style Selector="md|MarkdownRenderer">
       <Style Selector="^ Span.Emphasis">
         <Style Selector="^.Subscript">
