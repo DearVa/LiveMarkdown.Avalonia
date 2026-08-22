@@ -185,7 +185,8 @@ public class WheelAxisRoutingTests
         window.Show();
         window.UpdateLayout();
 
-        WheelAxisRouting.Attach(inner);
+        // Through the ATTACHED PROPERTY, which is what a style sets — the shipped entry point.
+        WheelAxisRouting.SetEnabled(inner, true);
 
         // From the CONTENT, with the horizontal drift a real trackpad always carries.
         content.RaiseEvent(WheelArgs(content, -0.2, -1, KeyModifiers.None));
@@ -197,6 +198,56 @@ public class WheelAxisRoutingTests
             Assert.That(inner.Offset.X, Is.EqualTo(0).Within(0.01),
                 "and the table must not have moved sideways under them");
         });
+        window.Close();
+    }, CancellationToken.None).GetAwaiter().GetResult();
+
+    /// <summary>Setting the property back to false unhooks it — a style can be conditional, and a scroller
+    /// that stops routing must go back to Avalonia's OWN behaviour, which for the trackpad case means the
+    /// inner scroller claiming the gesture again. Asserted on that case rather than a pure vertical notch,
+    /// because Avalonia already routes a pure notch to the ancestor with or without us — an assertion there
+    /// would pass either way and prove nothing.</summary>
+    [Test]
+    public void Disabling_The_Property_Restores_Avalonias_Own_Behaviour() => session.Dispatch(() =>
+    {
+        var content = new Border { Width = 2000, Height = 40 };
+
+        var inner = Scroller();
+        inner.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+        inner.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        inner.Width = 200;
+        inner.Height = 60;
+        inner.Content = content;
+
+        var outer = Scroller();
+        outer.Width = 220;
+        outer.Height = 200;
+        outer.Content = new StackPanel { Children = { new Border { Height = 400 }, inner, new Border { Height = 400 } } };
+
+        var window = new Window { Width = 300, Height = 260, Content = outer };
+        window.Show();
+        window.UpdateLayout();
+
+        WheelAxisRouting.SetEnabled(inner, true);
+        WheelAxisRouting.SetEnabled(inner, false);
+
+        content.RaiseEvent(WheelArgs(content, -0.2, -1, KeyModifiers.None));
+
+        Assert.That(inner.Offset.X, Is.GreaterThan(0),
+            "with routing off the inner scroller takes the gesture again — the behaviour this exists to change");
+        window.Close();
+    }, CancellationToken.None).GetAwaiter().GetResult();
+
+    /// <summary>The step is a property rather than a baked-in constant.</summary>
+    [Test]
+    public void Step_Is_Configurable() => session.Dispatch(() =>
+    {
+        var (window, outer, inner) = Build();
+        WheelAxisRouting.SetStep(inner, 120);
+        WheelAxisRouting.SetEnabled(inner, true);
+
+        Wheel(inner, 0, -1);
+
+        Assert.That(outer.Offset.Y, Is.EqualTo(120).Within(0.01));
         window.Close();
     }, CancellationToken.None).GetAwaiter().GetResult();
 }

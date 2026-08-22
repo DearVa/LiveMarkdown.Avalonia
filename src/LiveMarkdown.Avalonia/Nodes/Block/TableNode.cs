@@ -35,8 +35,6 @@ public class TableNode : BlockNode<Table>
                 Child = container
             }
         };
-        // A vertical wheel over the table keeps scrolling the document (see WheelAxisRouting).
-        WheelAxisRouting.Attach((ScrollViewer)Control);
     }
 
     /// <inheritdoc/>
