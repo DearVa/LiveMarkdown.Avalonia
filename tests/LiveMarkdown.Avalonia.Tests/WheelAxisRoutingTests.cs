@@ -61,7 +61,7 @@ public class WheelAxisRoutingTests
     private static void Wheel(ScrollViewer target, double dx, double dy, KeyModifiers mods = KeyModifiers.None) =>
         target.RaiseEvent(WheelArgs(target, dx, dy, mods));
 
-    private static PointerWheelEventArgs WheelArgs(ScrollViewer target, double dx, double dy, KeyModifiers mods) =>
+    private static PointerWheelEventArgs WheelArgs(Control target, double dx, double dy, KeyModifiers mods) =>
         new(target, new Pointer(0, PointerType.Mouse, true), target, default, 0,
             new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), mods, new Vector(dx, dy))
         {
@@ -142,6 +142,61 @@ public class WheelAxisRoutingTests
 
         Assert.That(outer.Offset.Y, Is.EqualTo(48).Within(0.01),
             "a doubly-attached handler would move the document two steps for one notch");
+        window.Close();
+    }, CancellationToken.None).GetAwaiter().GetResult();
+
+    /// <summary>The case the routing actually exists for, and the only one in this fixture that FAILS
+    /// without it.
+    ///
+    /// <para>Stock Avalonia routes a vertical wheel correctly in three of the four combinations here — it
+    /// takes BOTH a gesture originating in the CONTENT under the pointer and a delta carrying a small
+    /// horizontal component before the inner scroller claims it. Measured against this exact setup with no
+    /// routing attached:</para>
+    ///
+    /// <code>
+    /// raised on scroller, delta (0,-1)     -> outer scrolls 50   correct
+    /// raised on scroller, delta (-0.2,-1)  -> outer scrolls 50   correct
+    /// raised on CONTENT,  delta (0,-1)     -> outer scrolls 50   correct
+    /// raised on CONTENT,  delta (-0.2,-1)  -> inner pans 10      THE BUG
+    /// </code>
+    ///
+    /// <para>A mouse wheel sends a pure vertical delta and never reaches the failing case; a TRACKPAD always
+    /// carries a little horizontal drift, so a two-finger scroll over a wide table pans it sideways while the
+    /// document stands still. Testing with a mouse therefore shows nothing wrong, which is worth knowing
+    /// before concluding this fix is unnecessary.</para></summary>
+    [Test]
+    public void A_Trackpad_Gesture_From_The_Content_Still_Scrolls_The_Document() => session.Dispatch(() =>
+    {
+        var content = new Border { Width = 2000, Height = 40 };
+
+        var inner = Scroller();
+        inner.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+        inner.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        inner.Width = 200;
+        inner.Height = 60;
+        inner.Content = content;
+
+        var outer = Scroller();
+        outer.Width = 220;
+        outer.Height = 200;
+        outer.Content = new StackPanel { Children = { new Border { Height = 400 }, inner, new Border { Height = 400 } } };
+
+        var window = new Window { Width = 300, Height = 260, Content = outer };
+        window.Show();
+        window.UpdateLayout();
+
+        WheelAxisRouting.Attach(inner);
+
+        // From the CONTENT, with the horizontal drift a real trackpad always carries.
+        content.RaiseEvent(WheelArgs(content, -0.2, -1, KeyModifiers.None));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(outer.Offset.Y, Is.GreaterThan(0),
+                "a two-finger scroll over a table is someone reading the document, not panning the table");
+            Assert.That(inner.Offset.X, Is.EqualTo(0).Within(0.01),
+                "and the table must not have moved sideways under them");
+        });
         window.Close();
     }, CancellationToken.None).GetAwaiter().GetResult();
 }
