@@ -317,13 +317,13 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        InvalidateRendererTextBlockCache(e.AttachmentPoint);
+        InvalidateRendererTextState(e.AttachmentPoint);
     }
 
     /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        InvalidateRendererTextBlockCache(e.AttachmentPoint);
+        InvalidateRendererTextState(e.AttachmentPoint);
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -338,6 +338,11 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        if (change.Property == IsVisibleProperty)
+        {
+            InvalidateRendererTextState(this);
+        }
 
         if (change.Property == FontFamilyProperty ||
             change.Property == FontSizeProperty ||
@@ -1995,13 +2000,13 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         _textRuns = textRuns;
     }
 
-    private static void InvalidateRendererTextBlockCache(Visual? visual)
+    private static void InvalidateRendererTextState(Visual? visual)
     {
         for (var current = visual; current is not null; current = current.GetVisualParent())
         {
             if (current is MarkdownRenderer renderer)
             {
-                renderer.InvalidateTextBlockCache();
+                renderer.InvalidateRenderedTextState();
             }
         }
     }

@@ -234,9 +234,71 @@ public class MarkdownRendererDocumentTests
     }
 
     [Test]
-    public async Task DocumentUpdate_SetToNull_ClearsVisualTreeSynchronously()
+    public async Task RenderedTextState_WhenBlockVisibilityChanges_RefreshesAfterLayout()
     {
-        var renderedText = await session.Dispatch(
+        var result = await session.Dispatch(
+            () =>
+            {
+                var renderer = new MarkdownRenderer
+                {
+                    DocumentUpdate = new MarkdownDocumentUpdate.Full(
+                        Markdown.Parse("target", MarkdownUpdateProducer.DefaultPipeline)),
+                };
+                var window = new Window
+                {
+                    Width = 400,
+                    Height = 200,
+                    Content = renderer,
+                };
+
+                try
+                {
+                    window.Show();
+                    renderer.ApplyTextSearch("target");
+                    var block = renderer.GetVisualDescendants().OfType<MarkdownTextBlock>().Single();
+                    var initialProjection = renderer.RenderedTextProjection?.Buffers.Count;
+                    var initialMatches = renderer.TextSearchMatches.Count;
+
+                    block.IsVisible = false;
+                    window.UpdateLayout();
+                    var hiddenProjection = renderer.RenderedTextProjection?.Buffers.Count;
+                    var hiddenMatches = renderer.TextSearchMatches.Count;
+
+                    block.IsVisible = true;
+                    window.UpdateLayout();
+                    var restoredProjection = renderer.RenderedTextProjection?.Buffers.Count;
+                    var restoredMatches = renderer.TextSearchMatches.Count;
+
+                    return (
+                        initialProjection,
+                        initialMatches,
+                        hiddenProjection,
+                        hiddenMatches,
+                        restoredProjection,
+                        restoredMatches);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.initialProjection, Is.EqualTo(1));
+            Assert.That(result.initialMatches, Is.EqualTo(1));
+            Assert.That(result.hiddenProjection, Is.Zero);
+            Assert.That(result.hiddenMatches, Is.Zero);
+            Assert.That(result.restoredProjection, Is.EqualTo(1));
+            Assert.That(result.restoredMatches, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task DocumentUpdate_SetToNull_ClearsVisualTreeAndRenderedTextStateSynchronously()
+    {
+        var result = await session.Dispatch(
             () =>
             {
                 var renderer = new MarkdownRenderer
@@ -254,8 +316,14 @@ public class MarkdownRendererDocumentTests
                 try
                 {
                     window.Show();
+                    renderer.ApplyTextSearch("content");
+                    var block = renderer.GetVisualDescendants().OfType<MarkdownTextBlock>().Single();
                     renderer.DocumentUpdate = null;
-                    return GetRenderedText(renderer);
+                    return (
+                        RenderedText: GetRenderedText(renderer),
+                        renderer.RenderedTextProjection,
+                        renderer.TextSearchMatches,
+                        HighlightCount: block.Highlights.Count);
                 }
                 finally
                 {
@@ -264,7 +332,13 @@ public class MarkdownRendererDocumentTests
             },
             CancellationToken.None);
 
-        Assert.That(renderedText, Is.Empty);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.RenderedText, Is.Empty);
+            Assert.That(result.RenderedTextProjection, Is.Null);
+            Assert.That(result.TextSearchMatches, Is.Empty);
+            Assert.That(result.HighlightCount, Is.Zero);
+        });
     }
 
     [Test]

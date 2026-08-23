@@ -84,7 +84,34 @@ public class MarkdownSelectionTests
         root.Children.Add(first);
         root.Children.Add(new Border { Child = second });
 
-        Assert.That(MarkdownRenderer.GetAllSelectableBlocksInScope(root).ToArray(), Is.EqualTo(new[] { first, second }));
+        MarkdownTextBlock[] blocks = [.. MarkdownRenderer.GetVisibleMarkdownTextBlockDescendants(root)];
+
+        Assert.That(blocks, Is.EqualTo(new[] { first, second }));
+    }
+
+    [Test]
+    public void GetAllSelectableBlocksInScope_WhenBranchVisibilityChanges_ReflectsVisibleTree()
+    {
+        var root = new StackPanel();
+        var first = new MarkdownTextBlock { Text = "first" };
+        var hidden = new MarkdownTextBlock { Text = "hidden" };
+        var last = new MarkdownTextBlock { Text = "last" };
+        var branch = new Border { Child = hidden };
+
+        root.Children.Add(first);
+        root.Children.Add(branch);
+        root.Children.Add(last);
+        branch.IsVisible = false;
+
+        Assert.That(hidden.IsEffectivelyVisible, Is.False);
+        MarkdownTextBlock[] collapsedBlocks = [.. MarkdownRenderer.GetVisibleMarkdownTextBlockDescendants(root)];
+        Assert.That(collapsedBlocks, Is.EqualTo(new[] { first, last }));
+
+        branch.IsVisible = true;
+
+        Assert.That(hidden.IsEffectivelyVisible, Is.True);
+        MarkdownTextBlock[] expandedBlocks = [.. MarkdownRenderer.GetVisibleMarkdownTextBlockDescendants(root)];
+        Assert.That(expandedBlocks, Is.EqualTo(new[] { first, hidden, last }));
     }
 
     [Test]

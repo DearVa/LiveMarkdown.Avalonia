@@ -247,6 +247,27 @@ public class MarkdownTextSearchTests
         Assert.That(block.Highlights.Values.Single().Name, Is.EqualTo("second"));
     }
 
+    [Test]
+    public void ApplyTextSearch_WhenBlockVisibilityChanges_UsesCurrentRenderedBlocks()
+    {
+        var renderer = new TestMarkdownRenderer();
+        var block = new MarkdownTextBlock { Text = "target" };
+        renderer.Add(block);
+
+        var visibleMatches = renderer.ApplyTextSearch("target");
+        block.IsVisible = false;
+        var hiddenMatches = renderer.ApplyTextSearch("target");
+        block.IsVisible = true;
+        var restoredMatches = renderer.ApplyTextSearch("target");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(visibleMatches, Has.Count.EqualTo(1));
+            Assert.That(hiddenMatches, Is.Empty);
+            Assert.That(restoredMatches, Has.Count.EqualTo(1));
+        });
+    }
+
     private sealed class TestMarkdownRenderer : MarkdownRenderer
     {
         public TestMarkdownRenderer()

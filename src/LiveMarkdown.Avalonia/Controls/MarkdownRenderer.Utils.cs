@@ -1,11 +1,14 @@
 ﻿// @author https://github.com/DearVa
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Text;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.LogicalTree;
 using Avalonia.Media.TextFormatting.Unicode;
+using Avalonia.VisualTree;
 using Markdig.Syntax;
 using LineBreak = Avalonia.Controls.Documents.LineBreak;
 
@@ -449,6 +452,127 @@ public partial class MarkdownRenderer
             }
 
             return cursor;
+        }
+    }
+
+    internal static MarkdownTextBlockDescendants GetVisibleMarkdownTextBlockDescendants(Visual visual) =>
+        new(visual, requireEffectiveVisibility: true);
+
+    internal static MarkdownTextBlockDescendants GetRenderedMarkdownTextBlockDescendants(Visual visual) =>
+        new(visual, requireEffectiveVisibility: false);
+
+    internal readonly struct MarkdownTextBlockDescendants(Visual root, bool requireEffectiveVisibility)
+    {
+        public Enumerator GetEnumerator() => new(root, requireEffectiveVisibility);
+
+        public struct Enumerator : IDisposable
+        {
+            private const int InitialStackCapacity = 8;
+
+            public MarkdownTextBlock Current => current ?? throw new InvalidOperationException();
+
+            private Frame[]? frames;
+            private int depth;
+            private Visual? next;
+            private MarkdownTextBlock? current;
+            private readonly bool requireEffectiveVisibility;
+
+            internal Enumerator(Visual root, bool requireEffectiveVisibility)
+            {
+                frames = null;
+                depth = 0;
+                next = root;
+                current = null;
+                this.requireEffectiveVisibility = requireEffectiveVisibility;
+            }
+
+            public bool MoveNext()
+            {
+                while (next is { } visual)
+                {
+                    if (requireEffectiveVisibility && !visual.IsEffectivelyVisible)
+                    {
+                        next = MoveToNextSibling();
+                        continue;
+                    }
+
+                    var children = (IReadOnlyList<Visual>)visual.GetVisualChildren();
+                    if (children.Count > 0)
+                    {
+                        Push(children);
+                        next = children[0];
+                    }
+                    else
+                    {
+                        next = MoveToNextSibling();
+                    }
+
+                    if (visual is MarkdownTextBlock { IsVisible: true } block)
+                    {
+                        current = block;
+                        return true;
+                    }
+                }
+
+                Dispose();
+                return false;
+            }
+
+            public void Dispose()
+            {
+                var rentedFrames = frames;
+                frames = null;
+                depth = 0;
+                next = null;
+                current = null;
+                if (rentedFrames is null) return;
+
+                ArrayPool<Frame>.Shared.Return(rentedFrames, clearArray: true);
+            }
+
+            private void Push(IReadOnlyList<Visual> children)
+            {
+                var currentFrames = frames;
+                if (currentFrames is null)
+                {
+                    currentFrames = ArrayPool<Frame>.Shared.Rent(InitialStackCapacity);
+                    frames = currentFrames;
+                }
+                else if (depth == currentFrames.Length)
+                {
+                    var expandedFrames = ArrayPool<Frame>.Shared.Rent(currentFrames.Length * 2);
+                    Array.Copy(currentFrames, expandedFrames, depth);
+                    ArrayPool<Frame>.Shared.Return(currentFrames, clearArray: true);
+                    frames = currentFrames = expandedFrames;
+                }
+
+                currentFrames[depth++] = new Frame(children);
+            }
+
+            private Visual? MoveToNextSibling()
+            {
+                var currentFrames = frames;
+                while (depth > 0 && currentFrames is not null)
+                {
+                    ref var frame = ref currentFrames[depth - 1];
+                    if (frame.NextIndex < frame.Children.Count)
+                    {
+                        return frame.Children[frame.NextIndex++];
+                    }
+
+                    frame = default;
+                    depth--;
+                }
+
+                return null;
+            }
+        }
+
+        private struct Frame(IReadOnlyList<Visual> children)
+        {
+            public IReadOnlyList<Visual> Children { get; } = children;
+
+            public int NextIndex { get; set; } = 1;
         }
     }
 }

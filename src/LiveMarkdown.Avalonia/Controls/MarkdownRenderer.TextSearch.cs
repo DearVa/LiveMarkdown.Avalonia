@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.VisualTree;
 using Markdig.Helpers;
 
 namespace LiveMarkdown.Avalonia;
@@ -79,8 +78,6 @@ partial class MarkdownRenderer
     private string _textSearchHighlightName = DefaultTextSearchHighlightName;
     private string? _textSearchAppliedHighlightName;
     private int _textSearchPriority;
-    private MarkdownTextBlock[]? _textBlocksCache;
-    private MarkdownTextBlock[]? _selectableBlocksCache;
     private HashSet<MarkdownTextBlock>? _textSearchAppliedBlocks;
     private long? _pendingRenderedTextStateVersion;
 
@@ -103,7 +100,7 @@ partial class MarkdownRenderer
         _textSearchMatcher = matcher;
         _textSearchHighlightName = highlightName;
         _textSearchPriority = priority;
-        ApplyTextSearchCore();
+        ApplyTextSearchCore(GetTextBlocksInRenderer());
         return TextSearchMatches;
     }
 
@@ -166,7 +163,11 @@ partial class MarkdownRenderer
     public void ClearTextSearch()
     {
         _textSearchMatcher = null;
+        ClearAppliedTextSearch();
+    }
 
+    private void ClearAppliedTextSearch()
+    {
         if (_textSearchAppliedBlocks is { } appliedBlocks)
         {
             foreach (var block in appliedBlocks)
@@ -187,63 +188,45 @@ partial class MarkdownRenderer
         TextSearchMatches = [];
     }
 
-    private IReadOnlyList<MarkdownTextBlock> GetTextBlocksInRenderer()
-    {
-        return _textBlocksCache ??=
-        [
-            .. documentNode.Control
-                .GetSelfAndVisualDescendants()
-                .OfType<MarkdownTextBlock>()
-                .Where(block => block.IsVisible),
-        ];
-    }
+    private MarkdownTextBlock[] GetTextBlocksInRenderer() =>
+        [.. GetRenderedMarkdownTextBlockDescendants(documentNode.Control)];
 
-    private IReadOnlyList<MarkdownTextBlock> GetSelectableBlocksInRenderer()
+    internal void InvalidateRenderedTextState()
     {
-        return _selectableBlocksCache ??= [.. this.GetSelfAndVisualDescendants().OfType<MarkdownTextBlock>(),];
-    }
-
-    internal void InvalidateTextBlockCache()
-    {
-        _textBlocksCache = null;
-        _selectableBlocksCache = null;
-
-        if (RenderedTextProjection is { } projection)
+        if (DocumentUpdate is { } update)
         {
-            ScheduleRenderedTextStateRefresh(projection.SourceVersion);
+            ScheduleRenderedTextStateRefresh(update.Version);
         }
     }
 
     private void ScheduleRenderedTextStateRefresh(long sourceVersion)
     {
         _pendingRenderedTextStateVersion = sourceVersion;
-        InvalidateArrange();
     }
 
-    private void RefreshRenderedTextState()
+    private void HandleLayoutUpdated(object? sender, EventArgs e)
     {
-        if (VisualRoot is null || _pendingRenderedTextStateVersion is not { } sourceVersion) return;
-
-        if (MarkdownBuilder is { } builder && builder.Version != sourceVersion)
-        {
-            _pendingRenderedTextStateVersion = null;
-            return;
-        }
+        if (_pendingRenderedTextStateVersion is not { } sourceVersion) return;
 
         _pendingRenderedTextStateVersion = null;
-        RenderedTextProjection = CreateRenderedTextProjection(sourceVersion);
-        ApplyTextSearchCore();
+        var blocks = GetTextBlocksInRenderer();
+        RenderedTextProjection = CreateRenderedTextProjection(sourceVersion, blocks);
+        ApplyTextSearchCore(blocks);
     }
 
-    private MarkdownTextProjection CreateRenderedTextProjection(long sourceVersion)
+    private static MarkdownTextProjection CreateRenderedTextProjection(long sourceVersion, MarkdownTextBlock[] blocks)
     {
-        var buffers = GetTextBlocksInRenderer()
-            .Select(block => new MarkdownTextBuffer(block.SourceSpan, new StringSlice(block.LayoutText)))
-            .ToArray();
+        var buffers = new MarkdownTextBuffer[blocks.Length];
+        for (var i = 0; i < blocks.Length; i++)
+        {
+            var block = blocks[i];
+            buffers[i] = new MarkdownTextBuffer(block.SourceSpan, new StringSlice(block.LayoutText));
+        }
+
         return new MarkdownTextProjection(sourceVersion, buffers);
     }
 
-    private void ApplyTextSearchCore()
+    private void ApplyTextSearchCore(MarkdownTextBlock[] blocks)
     {
         if (_textSearchMatcher is not { } matcher)
         {
@@ -253,7 +236,7 @@ partial class MarkdownRenderer
         var pendingRanges = new Dictionary<MarkdownTextBlock, IReadOnlyList<TextHighlightRange>>();
         var matches = new List<TextHighlightMatch>();
 
-        foreach (var block in GetTextBlocksInRenderer())
+        foreach (var block in blocks)
         {
             var text = block.LayoutText;
             var ranges = NormalizeRanges(matcher(block, text), text.Length);
@@ -306,7 +289,7 @@ partial class MarkdownRenderer
         _textSearchMatcher = (block, text) => matcher(block, text, state);
         _textSearchHighlightName = highlightName;
         _textSearchPriority = priority;
-        ApplyTextSearchCore();
+        ApplyTextSearchCore(GetTextBlocksInRenderer());
         return TextSearchMatches;
     }
 

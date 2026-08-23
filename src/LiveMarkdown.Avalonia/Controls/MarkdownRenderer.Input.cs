@@ -53,13 +53,15 @@ public partial class MarkdownRenderer
     {
         get
         {
-            var allBlocks = GetAllSelectableBlocksInScope(GetSelectionScopeRoot());
+            var allBlocks = GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot());
 
             var sb = new StringBuilder();
             var isFirst = true;
 
-            foreach (var block in allBlocks.Where(b => !IsNestedBlock(b)))
+            foreach (var block in allBlocks)
             {
+                if (IsNestedBlock(block)) continue;
+
                 var text = block.ActualSelectedText;
                 if (string.IsNullOrEmpty(text)) continue;
 
@@ -130,7 +132,7 @@ public partial class MarkdownRenderer
         }
 
         var point = e.GetCurrentPoint(this);
-        var localBlocks = GetAllSelectableBlocksInScope(this).ToList();
+        MarkdownTextBlock[] localBlocks = [.. GetVisibleMarkdownTextBlockDescendants(this)];
         var targetBlock = FindPointerTargetBlock(e, localBlocks, this, point.Position);
         if (targetBlock == null) // Truly nothing to select
         {
@@ -146,7 +148,7 @@ public partial class MarkdownRenderer
         {
             ClearContextMenuCandidate();
 
-            _activeScopeBlocks = [.. GetAllSelectableBlocksInScope(ResolveSelectionScopeRoot(targetBlock, this))];
+            _activeScopeBlocks = [.. GetVisibleMarkdownTextBlockDescendants(ResolveSelectionScopeRoot(targetBlock, this))];
             _interactionPointer = e.Pointer;
             _interactionStartPoint = point.Position;
             _pendingLinkBlock = targetBlock;
@@ -428,7 +430,7 @@ public partial class MarkdownRenderer
             return false;
         }
 
-        var blocks = GetAllSelectableBlocksInScope(this).ToArray();
+        MarkdownTextBlock[] blocks = [.. GetVisibleMarkdownTextBlockDescendants(this)];
         var over = UpdatePointerOverLink(e, blocks);
         if (over.Block != pressedBlock || over.Link != pressedLink || pressedBlock.LinkContextMenu is not { } contextMenu)
         {
@@ -937,10 +939,7 @@ public partial class MarkdownRenderer
     /// <summary>
     /// Finds the nearest MarkdownTextBlock in the provided list to the given point.
     /// </summary>
-    private static MarkdownTextBlock? FindNearestBlockInList(
-        IReadOnlyList<MarkdownTextBlock> blocks,
-        Visual relativeTo,
-        Point point)
+    private static MarkdownTextBlock? FindNearestBlockInList(IReadOnlyList<MarkdownTextBlock> blocks, Visual relativeTo, Point point)
     {
         if (blocks.Count == 0) return null;
 
@@ -993,21 +992,6 @@ public partial class MarkdownRenderer
         return scopeRoot ?? fallback;
     }
 
-    internal static IEnumerable<MarkdownTextBlock> GetAllSelectableBlocksInScope(Visual scopeRoot)
-    {
-        // We want all blocks, including nested ones, because hierarchy is handled by
-        // GetEffectiveStart/GetEffectiveEnd. DFS order provides the document order.
-        var blocks = scopeRoot is MarkdownRenderer renderer
-            ? renderer.GetSelectableBlocksInRenderer()
-            : scopeRoot.GetSelfAndVisualDescendants().OfType<MarkdownTextBlock>();
-
-        // Skip blocks inside a collapsed branch — a folded section, or a node's hidden alternate view — so
-        // select-all and copy never pick up text the reader cannot see. Filtered HERE rather than inside the
-        // cache above, because visibility changes WITHOUT a document change: an expander collapsing does not
-        // invalidate the block cache, so a filter baked into it would be stale.
-        return blocks.Where(b => b.IsEffectivelyVisible);
-    }
-
     private static bool IsNestedBlock(MarkdownTextBlock child) => child.FindAncestorOfType<MarkdownTextBlock>() is not null;
 
     private static int GetCaretPosition(MarkdownTextBlock block, PointerEventArgs e)
@@ -1057,7 +1041,7 @@ public partial class MarkdownRenderer
             // select section
             case 3:
             {
-                SelectAll(block.GetSelfAndVisualDescendants().OfType<MarkdownTextBlock>());
+                SelectAll(GetVisibleMarkdownTextBlockDescendants(block));
                 UpdateCanCopy();
                 return;
             }
@@ -1093,7 +1077,7 @@ public partial class MarkdownRenderer
     /// </summary>
     public void SelectAll()
     {
-        SelectAll(GetAllSelectableBlocksInScope(GetSelectionScopeRoot()));
+        SelectAll(GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot()));
         UpdateCanCopy();
     }
 
@@ -1102,7 +1086,7 @@ public partial class MarkdownRenderer
     /// </summary>
     public void ClearSelection()
     {
-        ClearSelection(GetAllSelectableBlocksInScope(GetSelectionScopeRoot()));
+        ClearSelection(GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot()));
         UpdateCanCopy();
     }
 
@@ -1111,7 +1095,17 @@ public partial class MarkdownRenderer
         foreach (var block in blocks) block.SelectAll();
     }
 
+    private static void SelectAll(MarkdownTextBlockDescendants blocks)
+    {
+        foreach (var block in blocks) block.SelectAll();
+    }
+
     private static void ClearSelection(IEnumerable<MarkdownTextBlock> blocks)
+    {
+        foreach (var block in blocks) block.ClearSelection();
+    }
+
+    private static void ClearSelection(MarkdownTextBlockDescendants blocks)
     {
         foreach (var block in blocks) block.ClearSelection();
     }

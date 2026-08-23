@@ -189,6 +189,9 @@ public partial class MarkdownRenderer : Control
         LogicalChildren.Add(documentNode.Control);
         VisualChildren.Add(documentNode.Control);
 
+        // Keep one subscription for the renderer's lifetime. The pending version gates the work,
+        // avoiding event-list churn while streaming updates arrive every layout cycle.
+        LayoutUpdated += HandleLayoutUpdated;
         AddHandler(KeyDownEvent, HandleKeyDown);
         // A left press drops the selection, as every OS text surface does. TUNNEL phase with
         // handledEventsToo, because a press landing on something that HANDLES it — a button, an
@@ -201,15 +204,8 @@ public partial class MarkdownRenderer : Control
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         if (string.IsNullOrEmpty(SelectedText)) return;
-        ClearSelection(GetAllSelectableBlocksInScope(GetSelectionScopeRoot()));
+        ClearSelection(GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot()));
         UpdateCanCopy();
-    }
-
-    /// <inheritdoc/>
-    protected override void ArrangeCore(Rect finalRect)
-    {
-        base.ArrangeCore(finalRect);
-        RefreshRenderedTextState();
     }
 
     private void ApplyDocumentUpdate(MarkdownDocumentUpdate? value)
@@ -248,7 +244,7 @@ public partial class MarkdownRenderer : Control
         }
 
         RenderedTextProjection = null;
-        InvalidateTextBlockCache();
+        ClearAppliedTextSearch();
         if (value is not null)
         {
             ScheduleRenderedTextStateRefresh(value.Version);
