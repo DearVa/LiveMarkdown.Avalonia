@@ -759,6 +759,65 @@ public class MarkdownPointerSelectionTests
     }
 
     [Test]
+    public async Task CodeInline_BorderIsPaintedWithoutChangingTextBounds()
+    {
+        var result = await session.Dispatch(
+            () =>
+            {
+                var background = new SolidColorBrush(Colors.Magenta);
+                var border = new SolidColorBrush(Colors.Cyan);
+                var code = new CodeInline
+                {
+                    Text = "code",
+                    Background = background,
+                    BorderBrush = border,
+                    BorderThickness = 1,
+                    Padding = new Thickness(2, 0),
+                };
+                var block = new MarkdownTextBlock();
+                block.Inlines!.Add(code);
+
+                var window = new Window
+                {
+                    Width = 300,
+                    Height = 120,
+                    Content = block,
+                };
+
+                try
+                {
+                    window.Show();
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+
+                    var rangeBounds = block.GetTextRangeBounds(0, code.Text!.Length).Single();
+                    var drawingGroup = new DrawingGroup();
+                    using (var drawingContext = drawingGroup.Open())
+                    {
+                        block.Render(drawingContext);
+                    }
+
+                    var borderDrawing = EnumerateGeometryDrawings(drawingGroup)
+                        .Single(drawing => ReferenceEquals(drawing.Pen?.Brush, border));
+                    return (rangeBounds, borderDrawing.Pen!.Thickness, borderDrawing.Geometry!.Bounds);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.Thickness, Is.EqualTo(1));
+                Assert.That(result.Bounds.Left, Is.EqualTo(result.rangeBounds.Left).Within(0.01));
+                Assert.That(result.Bounds.Right, Is.EqualTo(result.rangeBounds.Right).Within(0.01));
+            });
+    }
+
+    [Test]
     public async Task Selection_DoesNotChangeMixedRunLayout()
     {
         var result = await session.Dispatch(

@@ -13,6 +13,18 @@ namespace LiveMarkdown.Avalonia.Tests;
 [NonParallelizable]
 public class MarkdownRendererDocumentTests
 {
+    [Test]
+    public void CodeInline_DefaultBorderPropertiesPreserveExistingAppearance()
+    {
+        var inline = new CodeInline();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(inline.BorderBrush, Is.Null);
+            Assert.That(inline.BorderThickness, Is.EqualTo(0));
+        });
+    }
+
     private HeadlessUnitTestSession session = null!;
 
     [OneTimeSetUp]
@@ -163,6 +175,8 @@ public class MarkdownRendererDocumentTests
                 var style = new Style(static selector => selector.OfType<CodeInline>());
                 style.Setters.Add(new Setter(CodeInline.BackgroundProperty, Brushes.Orange));
                 style.Setters.Add(new Setter(CodeInline.MarginProperty, new Thickness(7, 0)));
+                style.Setters.Add(new Setter(CodeInline.BorderBrushProperty, Brushes.Cyan));
+                style.Setters.Add(new Setter(CodeInline.BorderThicknessProperty, 1d));
                 renderer.Styles.Add(style);
                 var window = new Window
                 {
@@ -180,7 +194,7 @@ public class MarkdownRendererDocumentTests
                         .Inlines!
                         .OfType<CodeInline>()
                         .Single();
-                    return (code.Background, code.Margin, code.CornerRadius, code.Padding);
+                    return (code.Background, code.Margin, code.CornerRadius, code.Padding, code.BorderBrush, code.BorderThickness);
                 }
                 finally
                 {
@@ -195,6 +209,8 @@ public class MarkdownRendererDocumentTests
             Assert.That(inlineStyle.Margin, Is.EqualTo(new Thickness(7, 0)));
             Assert.That(inlineStyle.CornerRadius, Is.EqualTo(new CornerRadius(4)));
             Assert.That(inlineStyle.Padding, Is.EqualTo(new Thickness(2, 0)));
+            Assert.That(inlineStyle.BorderBrush, Is.SameAs(Brushes.Cyan));
+            Assert.That(inlineStyle.BorderThickness, Is.EqualTo(1));
         });
     }
 
