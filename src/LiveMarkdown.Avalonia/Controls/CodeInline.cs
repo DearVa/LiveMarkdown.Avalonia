@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls.Documents;
+using Avalonia.Media;
 
 namespace LiveMarkdown.Avalonia;
 
@@ -31,6 +32,21 @@ public sealed class CodeInline : Run
         AvaloniaProperty.Register<CodeInline, Thickness>(nameof(Margin));
 
     /// <summary>
+    /// Defines the visual border brush used by the containing <see cref="MarkdownTextBlock"/>
+    /// when painting this inline's background.
+    /// </summary>
+    public static readonly StyledProperty<IBrush?> BorderBrushProperty =
+        AvaloniaProperty.Register<CodeInline, IBrush?>(nameof(BorderBrush));
+
+    /// <summary>
+    /// Defines the visual border thickness used by the containing <see cref="MarkdownTextBlock"/>
+    /// when painting this inline's background. The value is paint-only and does not affect text
+    /// measurement or wrapping.
+    /// </summary>
+    public static readonly StyledProperty<double> BorderThicknessProperty =
+        AvaloniaProperty.Register<CodeInline, double>(nameof(BorderThickness));
+
+    /// <summary>
     /// Gets or sets the corner radius used when painting the code background.
     /// </summary>
     public CornerRadius CornerRadius
@@ -59,12 +75,32 @@ public sealed class CodeInline : Run
         set => SetValue(MarginProperty, value);
     }
 
+    /// <summary>
+    /// Gets or sets the visual border brush used when painting the code background.
+    /// </summary>
+    public IBrush? BorderBrush
+    {
+        get => GetValue(BorderBrushProperty);
+        set => SetValue(BorderBrushProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the visual border thickness used when painting the code background.
+    /// </summary>
+    public double BorderThickness
+    {
+        get => GetValue(BorderThicknessProperty);
+        set => SetValue(BorderThicknessProperty, value);
+    }
+
     static CodeInline()
     {
         BackgroundProperty.Changed.AddClassHandler<CodeInline>(static (s, _) => s.InvalidateParentTextBlock(affectsLayout: false));
         CornerRadiusProperty.Changed.AddClassHandler<CodeInline>(static (s, _) => s.InvalidateParentTextBlock(affectsLayout: false));
         PaddingProperty.Changed.AddClassHandler<CodeInline>(static (s, _) => s.InvalidateParentTextBlock(affectsLayout: true));
         MarginProperty.Changed.AddClassHandler<CodeInline>(static (s, _) => s.InvalidateParentTextBlock(affectsLayout: true));
+        BorderBrushProperty.Changed.AddClassHandler<CodeInline>(static (s, _) => s.InvalidateParentTextBlock(affectsLayout: false));
+        BorderThicknessProperty.Changed.AddClassHandler<CodeInline>(static (s, _) => s.InvalidateParentTextBlock(affectsLayout: false));
     }
 
     private void InvalidateParentTextBlock(bool affectsLayout)

@@ -831,7 +831,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
             contentRect.Width + span.Padding.Left + span.Padding.Right,
             contentRect.Height + span.Padding.Top + span.Padding.Bottom);
 
-        context.DrawRectangle(span.Brush, null, new RoundedRect(paddedRect, span.CornerRadius));
+        context.DrawRectangle(span.Brush, span.BorderPen, new RoundedRect(paddedRect, span.CornerRadius));
     }
 
     private TextPaintSnapshot GetPaintSnapshot(IReadOnlyList<TextRun>? textRuns)
@@ -888,7 +888,9 @@ public partial class MarkdownTextBlock : SelectableTextBlock
                             codeInline.Background,
                             codeInline.CornerRadius,
                             codeInline.Padding,
-                            codeInline.Margin));
+                            codeInline.Margin,
+                            codeInline.BorderBrush,
+                            codeInline.BorderThickness));
                     break;
                 }
                 case Run run:
@@ -1018,6 +1020,8 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     /// <param name="CornerRadius"></param>
     /// <param name="Padding"></param>
     /// <param name="Margin"></param>
+    /// <param name="BorderBrush"></param>
+    /// <param name="BorderThickness"></param>
     public readonly record struct CodeInlineSpan(
         int Start,
         int Length,
@@ -1025,9 +1029,26 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         IBrush? Background,
         CornerRadius CornerRadius,
         Thickness Padding,
-        Thickness Margin
+        Thickness Margin,
+        IBrush? BorderBrush,
+        double BorderThickness
     )
     {
+        /// <summary>
+        /// Initializes a code inline span without a border, preserving the pre-border API shape.
+        /// </summary>
+        public CodeInlineSpan(
+            int start,
+            int length,
+            CodeInline source,
+            IBrush? background,
+            CornerRadius cornerRadius,
+            Thickness padding,
+            Thickness margin)
+            : this(start, length, source, background, cornerRadius, padding, margin, null, 0)
+        {
+        }
+
         public int End => Start + Length;
     }
 
@@ -1057,23 +1078,32 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     private readonly struct TextPaintSpan(
         int start,
         int length,
-        IBrush brush,
+        IBrush? brush,
         Thickness padding,
         CornerRadius cornerRadius,
-        Thickness backgroundInset = default
+        Thickness backgroundInset = default,
+        IBrush? borderBrush = null,
+        double borderThickness = 0
     )
     {
         public int Start { get; } = start;
 
         public int Length { get; } = length;
 
-        public IBrush Brush { get; } = brush;
+        public IBrush? Brush { get; } = brush;
 
         public Thickness Padding { get; } = NormalizeThickness(padding);
 
         public CornerRadius CornerRadius { get; } = cornerRadius;
 
         public Thickness BackgroundInset { get; } = NormalizeThickness(backgroundInset);
+
+        public IPen? BorderPen { get; } = CreateBorderPen(borderBrush, borderThickness);
+
+        private static IPen? CreateBorderPen(IBrush? brush, double thickness) =>
+            brush is not null && double.IsFinite(thickness) && thickness > 0
+                ? new Pen(brush, thickness)
+                : null;
 
         private static Thickness NormalizeThickness(Thickness value) => new(
             Math.Max(0, value.Left),
@@ -1390,7 +1420,11 @@ public partial class MarkdownTextBlock : SelectableTextBlock
                     layoutCreated = true;
                 }
 
-                if (activeCodeInline.Background is { } background)
+                var background = activeCodeInline.Background;
+                if (background is not null ||
+                    activeCodeInline.BorderBrush is not null &&
+                    double.IsFinite(activeCodeInline.BorderThickness) &&
+                    activeCodeInline.BorderThickness > 0)
                 {
                     var padding = layoutCreated ?
                         new Thickness(0, Math.Max(0, activeCodeInline.Padding.Top), 0, Math.Max(0, activeCodeInline.Padding.Bottom)) :
@@ -1408,7 +1442,9 @@ public partial class MarkdownTextBlock : SelectableTextBlock
                         background,
                         padding,
                         activeCodeInline.CornerRadius,
-                        inset);
+                        inset,
+                        activeCodeInline.BorderBrush,
+                        activeCodeInline.BorderThickness);
                 }
 
                 hasActiveCodeInline = false;
@@ -1419,12 +1455,18 @@ public partial class MarkdownTextBlock : SelectableTextBlock
             void AddBackgroundSpan(
                 int start,
                 int length,
-                IBrush brush,
+                IBrush? brush,
                 Thickness padding,
                 CornerRadius cornerRadius,
-                Thickness backgroundInset)
+                Thickness backgroundInset,
+                IBrush? borderBrush = null,
+                double borderThickness = 0)
             {
-                if (length > 0)
+                if (length > 0 &&
+                    (brush is not null ||
+                        borderBrush is not null &&
+                        double.IsFinite(borderThickness) &&
+                        borderThickness > 0))
                 {
                     (backgroundSpans ??= []).Add(
                         new TextPaintSpan(
@@ -1433,7 +1475,9 @@ public partial class MarkdownTextBlock : SelectableTextBlock
                             brush,
                             padding,
                             cornerRadius,
-                            backgroundInset));
+                            backgroundInset,
+                            borderBrush,
+                            borderThickness));
                 }
             }
         }

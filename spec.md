@@ -35,7 +35,7 @@ selection 背景和 `SelectionForegroundBrush` 都在同一份稳定布局上以
 
 LiveMarkdown 的 `CodeInline` 直接继承 Avalonia `Run`，不再通过 `InlineUIContainer` 嵌套 `Border` 和子 `MarkdownTextBlock`。因此它与父文本共享字符索引、selection、搜索和换行。
 
-`CodeInline.Background` 使用 `Run`/`TextElement` 的背景属性；`CornerRadius`、`Padding` 与 `Margin` 由父 `MarkdownTextBlock` 统一绘制。`Padding` 与 `Margin` 的水平分量会进入同一份文本布局；当前只承诺水平 Margin，垂直 Margin 保留为 API 对称性但暂不参与布局或绘制，避免一个 inline 改变段落行高。这样相邻普通文字不会与 code inline 的视觉盒子发生重叠，且 UTF-16 索引仍只对应实际 code 文本。
+`CodeInline.Background` 使用 `Run`/`TextElement` 的背景属性；`BorderBrush`、`BorderThickness`、`CornerRadius`、`Padding` 与 `Margin` 由父 `MarkdownTextBlock` 统一绘制。边框是 paint-only 的单一描边宽度，不参与字体测量或换行；`BorderBrush` 默认为 `null`、`BorderThickness` 默认为 `0`，因此未配置描边时保持原有外观。未同时提供有效 brush 和正厚度时不绘制描边。`Padding` 与 `Margin` 的水平分量会进入同一份文本布局；当前只承诺水平 Margin，垂直 Margin 保留为 API 对称性但暂不参与布局或绘制，避免一个 inline 改变段落行高。这样相邻普通文字不会与 code inline 的视觉盒子发生重叠，且 UTF-16 索引仍只对应实际 code 文本。
 
 为避免重新实现字体 fallback，只有存在非零水平间距的 `CodeInline` 才会走额外 shaping：LiveMarkdown 建立一次不可变的 fallback glyph catalog，文本源按 formatter 的切分位置创建可释放的 `ShapedTextRun` slice；无间距的普通 inline 保持原有 `TextCharacters` 快路径。catalog 不缓存可变 `ShapedBuffer`，因此 Avalonia 的换行 split 不会污染后续布局。
 
@@ -79,16 +79,17 @@ matcher 会被 renderer 保留，并在 MarkdownBuilder 更新后自动重放。
 
 - `Background`；
 - `Foreground`（命名 highlight 与 selection 共用 paint-only glyph 路径）；
+- `BorderBrush` 与 `BorderThickness`（CodeInline 的 paint-only 描边）；
 - `CornerRadius`；
 - `Padding`。
 
-它们都只参与绘制，不参与 shaping。TextDecorations、stroke 和 shadow 等 paint-only 属性保留为后续扩展，不能通过加入字体或布局属性来实现。
+它们都只参与绘制，不参与 shaping。TextDecorations、额外的 stroke 样式和 shadow 等 paint-only 属性保留为后续扩展，不能通过加入字体或布局属性来实现。
 
 ## 4. 绘制顺序
 
 相对于同一个文本布局，绘制顺序为：
 
-1. 普通文本背景与 `CodeInline` 背景，按文本坐标绘制；
+1. 普通文本背景与 `CodeInline` 背景/描边，按文本坐标绘制；
 2. 命名 highlights，按 priority 和注册顺序；
 3. selection 背景；
 4. glyph 和文本装饰：无任何前景覆盖时由原始 `TextLayout` 绘制；有 selection 或命名 highlight 前景时由 LiveMarkdown 的分区 glyph 绘制路径解析最高优先级的前景，并使用原始属性绘制文本装饰。
