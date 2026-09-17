@@ -35,7 +35,7 @@ selection 背景和 `SelectionForegroundBrush` 都在同一份稳定布局上以
 
 LiveMarkdown 的 `CodeInline` 直接继承 Avalonia `Run`，不再通过 `InlineUIContainer` 嵌套 `Border` 和子 `MarkdownTextBlock`。因此它与父文本共享字符索引、selection、搜索和换行。
 
-`CodeInline.Background` 使用 `Run`/`TextElement` 的背景属性；`BorderBrush`、`BorderThickness`、`CornerRadius`、`Padding` 与 `Margin` 由父 `MarkdownTextBlock` 统一绘制。边框是 paint-only 的单一描边宽度，不参与字体测量或换行；`BorderBrush` 默认为 `null`、`BorderThickness` 默认为 `0`，因此未配置描边时保持原有外观。未同时提供有效 brush 和正厚度时不绘制描边。`Padding` 与 `Margin` 的水平分量会进入同一份文本布局；当前只承诺水平 Margin，垂直 Margin 保留为 API 对称性但暂不参与布局或绘制，避免一个 inline 改变段落行高。这样相邻普通文字不会与 code inline 的视觉盒子发生重叠，且 UTF-16 索引仍只对应实际 code 文本。
+`CodeInline.Background` 使用 `Run`/`TextElement` 的背景属性；`BorderBrush`、`BorderThickness`、`CornerRadius`、`Padding` 与 `Margin` 由父 `MarkdownTextBlock` 统一绘制。边框是 paint-only 的单一描边宽度，不参与字体测量或换行；`BorderBrush` 默认为 `null`、`BorderThickness` 默认为 `0`，因此未配置描边时保持原有外观。未同时提供有效 brush 和正厚度时不绘制描边。`Padding` 与 `Margin` 的水平分量会进入同一份文本布局；垂直 `Padding` 向外扩展背景，垂直 `Margin` 则在现有行框内缩背景与边框，不改变段落行高。这样既能通过样式控制相邻行的 code inline 视觉间距，也不会改变 UTF-16 文本索引或普通文字布局。
 
 为避免重新实现字体 fallback，只有存在非零水平间距的 `CodeInline` 才会走额外 shaping：LiveMarkdown 建立一次不可变的 fallback glyph catalog，文本源按 formatter 的切分位置创建可释放的 `ShapedTextRun` slice；无间距的普通 inline 保持原有 `TextCharacters` 快路径。catalog 不缓存可变 `ShapedBuffer`，因此 Avalonia 的换行 split 不会污染后续布局。
 

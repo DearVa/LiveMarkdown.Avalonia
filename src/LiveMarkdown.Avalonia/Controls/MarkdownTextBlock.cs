@@ -821,9 +821,9 @@ public partial class MarkdownTextBlock : SelectableTextBlock
 
         var contentRect = new Rect(
             value.X + leadingMargin,
-            value.Y,
+            value.Y + span.BackgroundInset.Top,
             Math.Max(0, value.Width - leadingMargin - trailingMargin),
-            value.Height);
+            Math.Max(0, value.Height - span.BackgroundInset.Top - span.BackgroundInset.Bottom));
 
         var paddedRect = new Rect(
             contentRect.X - span.Padding.Left,
@@ -1429,13 +1429,11 @@ public partial class MarkdownTextBlock : SelectableTextBlock
                     var padding = layoutCreated ?
                         new Thickness(0, Math.Max(0, activeCodeInline.Padding.Top), 0, Math.Max(0, activeCodeInline.Padding.Bottom)) :
                         NormalizeThickness(activeCodeInline.Padding);
-                    var inset = layoutCreated ?
-                        new Thickness(
-                            Math.Max(0, activeCodeInline.Margin.Left),
-                            0,
-                            Math.Max(0, activeCodeInline.Margin.Right),
-                            0) :
-                        default;
+                    var inset = new Thickness(
+                        layoutCreated ? Math.Max(0, activeCodeInline.Margin.Left) : 0,
+                        Math.Max(0, activeCodeInline.Margin.Top),
+                        layoutCreated ? Math.Max(0, activeCodeInline.Margin.Right) : 0,
+                        Math.Max(0, activeCodeInline.Margin.Bottom));
                     AddBackgroundSpan(
                         activeCodeInline.Start,
                         activeCodeInline.Length,
@@ -2168,4 +2166,3 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         PseudoClasses.Set(":pointerover-link", pointerLink is not null);
     }
 }
-

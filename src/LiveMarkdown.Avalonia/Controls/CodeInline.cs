@@ -24,9 +24,9 @@ public sealed class CodeInline : Run
         AvaloniaProperty.Register<CodeInline, Thickness>(nameof(Padding), new Thickness(2, 0));
 
     /// <summary>
-    /// Defines the horizontal layout margin reserved around this inline when the containing text
-    /// block can create its specialized shaped layout. Vertical values are retained for API
-    /// symmetry but currently do not affect layout or painting.
+    /// Defines the margin around this inline. Horizontal values reserve layout space when the
+    /// containing text block can create its specialized shaped layout. Vertical values inset the
+    /// painted background and border within the line box without changing the paragraph line height.
     /// </summary>
     public static readonly StyledProperty<Thickness> MarginProperty =
         AvaloniaProperty.Register<CodeInline, Thickness>(nameof(Margin));
@@ -65,9 +65,9 @@ public sealed class CodeInline : Run
     }
 
     /// <summary>
-    /// Gets or sets the margin reserved around the code inline. Horizontal values participate in
-    /// the specialized text layout when available; vertical values are currently ignored so a
-    /// single inline cannot unexpectedly alter the paragraph line height.
+    /// Gets or sets the margin around the code inline. Horizontal values participate in the
+    /// specialized text layout when available. Vertical values inset the painted background and
+    /// border without changing the paragraph line height.
     /// </summary>
     public Thickness Margin
     {
