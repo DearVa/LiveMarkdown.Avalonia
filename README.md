@@ -537,9 +537,10 @@ search, font fallback, bidirectional shaping, and line wrapping. It can be style
 </Style>
 ```
 
-Horizontal `Padding` and `Margin` reserve real layout width and therefore affect wrapping. Vertical `Padding` only
-expands the painted background; vertical `Margin` is currently retained for API symmetry but does not affect layout or
-painting. In contrast, `TextHighlightStyle.Padding` is always paint-only and never changes line breaking.
+Horizontal `Padding` and `Margin` reserve real layout width and therefore affect wrapping. Vertical `Padding` expands
+the painted background, while vertical `Margin` insets the background and border within the existing line box. This
+lets styles create space between inline-code borders without changing paragraph line height. In contrast,
+`TextHighlightStyle.Padding` is always paint-only and never changes line breaking.
 
 ### Code Block Theme
 

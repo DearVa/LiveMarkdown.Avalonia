@@ -759,6 +759,71 @@ public class MarkdownPointerSelectionTests
     }
 
     [Test]
+    public async Task CodeInline_StyledVerticalMarginInsetsPaintedBackground()
+    {
+        var result = await session.Dispatch(
+            () =>
+            {
+                var background = new SolidColorBrush(Colors.Magenta);
+                var code = new CodeInline
+                {
+                    Text = "code",
+                    Background = background,
+                    Padding = default,
+                };
+                var block = new MarkdownTextBlock();
+                block.Inlines!.Add(code);
+
+                var style = new Style(static selector => selector.OfType<CodeInline>());
+                style.Setters.Add(new Setter(CodeInline.MarginProperty, new Thickness(0, 3)));
+                block.Styles.Add(style);
+
+                var window = new Window
+                {
+                    Width = 300,
+                    Height = 120,
+                    Content = block,
+                };
+
+                try
+                {
+                    window.Show();
+                    block.Measure(new Size(300, 120));
+                    block.Arrange(new Rect(0, 0, 300, 120));
+
+                    var rangeBounds = block.GetTextRangeBounds(0, code.Text!.Length).Single();
+                    var hitBounds = block.GetCodeInlineRects(code).Single();
+                    var drawingGroup = new DrawingGroup();
+                    using (var drawingContext = drawingGroup.Open())
+                    {
+                        block.Render(drawingContext);
+                    }
+
+                    var backgroundBounds = EnumerateGeometryDrawings(drawingGroup)
+                        .Single(drawing => ReferenceEquals(drawing.Brush, background))
+                        .Geometry!
+                        .Bounds;
+                    return (code.Margin, rangeBounds, hitBounds, backgroundBounds);
+                }
+                finally
+                {
+                    window.Close();
+                }
+            },
+            CancellationToken.None);
+
+        Assert.Multiple(
+            () =>
+            {
+                Assert.That(result.Margin, Is.EqualTo(new Thickness(0, 3)));
+                Assert.That(result.backgroundBounds.Top, Is.EqualTo(result.rangeBounds.Top + 3).Within(0.01));
+                Assert.That(result.backgroundBounds.Bottom, Is.EqualTo(result.rangeBounds.Bottom - 3).Within(0.01));
+                Assert.That(result.hitBounds.Top, Is.EqualTo(result.backgroundBounds.Top).Within(0.01));
+                Assert.That(result.hitBounds.Bottom, Is.EqualTo(result.backgroundBounds.Bottom).Within(0.01));
+            });
+    }
+
+    [Test]
     public async Task CodeInline_BorderIsPaintedWithoutChangingTextBounds()
     {
         var result = await session.Dispatch(

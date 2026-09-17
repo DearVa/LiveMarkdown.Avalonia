@@ -80,6 +80,10 @@ public partial class MarkdownTextBlock
     {
         if (span.Length <= 0) return [];
 
+        var marginTop = Math.Max(0, span.Margin.Top);
+        var marginBottom = Math.Max(0, span.Margin.Bottom);
+        var paddingTop = Math.Max(0, span.Padding.Top);
+        var paddingBottom = Math.Max(0, span.Padding.Bottom);
         List<Rect>? rects = null;
         var y = 0d;
         foreach (var line in textLayout.TextLines)
@@ -95,9 +99,9 @@ public partial class MarkdownTextBlock
                     var rect = bounds.Rectangle.Translate(new Vector(0, y));
                     (rects ??= []).Add(new Rect(
                         rect.X - span.Padding.Left,
-                        rect.Y - span.Padding.Top,
+                        rect.Y + marginTop - paddingTop,
                         rect.Width + span.Padding.Left + span.Padding.Right,
-                        rect.Height + span.Padding.Top + span.Padding.Bottom));
+                        Math.Max(0, rect.Height - marginTop - marginBottom) + paddingTop + paddingBottom));
                 }
             }
 
