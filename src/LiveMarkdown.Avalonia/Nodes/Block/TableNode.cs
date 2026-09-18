@@ -116,10 +116,7 @@ public class TableNode : BlockNode<Table>
 
                 if (columnIndex + cell.ColumnSpan >= table.ColumnDefinitions.Count)
                 {
-                    if (!cellControl.Classes.Contains("LastColumn"))
-                    {
-                        cellControl.Classes.Add("LastColumn");
-                    }
+                    cellControl.Classes.Add("LastColumn");
                 }
                 else
                 {
@@ -128,10 +125,7 @@ public class TableNode : BlockNode<Table>
 
                 if (rowIndex == lastRowIndex)
                 {
-                    if (!cellControl.Classes.Contains("LastRow"))
-                    {
-                        cellControl.Classes.Add("LastRow");
-                    }
+                    cellControl.Classes.Add("LastRow");
                 }
                 else
                 {
