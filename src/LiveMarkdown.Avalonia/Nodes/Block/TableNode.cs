@@ -32,7 +32,11 @@ public class TableNode : BlockNode<Table>
             Content = new Border
             {
                 Classes = { "Table" },
-                Child = container
+                Child = new Border
+                {
+                    Classes = { "TableContent" },
+                    Child = container
+                }
             }
         };
     }
@@ -46,10 +50,13 @@ public class TableNode : BlockNode<Table>
     {
         if (table.ColumnDefinitions.Count == 0) return false;
 
+        var rows = table.OfType<TableRow>().ToArray();
+        var lastRowIndex = rows.Length - 1;
         var cellIndex = 0;
-        foreach (var (row, rowIndex) in table.OfType<TableRow>().Select((r, i) => (r, i)))
+        foreach (var (row, rowIndex) in rows.Select((r, i) => (r, i)))
         {
-            foreach (var (cell, columnIndex) in row.OfType<TableCell>().Select((c, i) => (c, i)))
+            var cells = row.OfType<TableCell>().ToArray();
+            foreach (var (cell, columnIndex) in cells.Select((c, i) => (c, i)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -64,8 +71,8 @@ public class TableNode : BlockNode<Table>
                     {
                         case null: // Not dirty
                         {
-                            cellIndex++;
-                            continue;
+                            cellControl = oldCellBlockNode.Control;
+                            break;
                         }
                         case false: // remove the old node and create a new one if false
                         {
@@ -105,6 +112,24 @@ public class TableNode : BlockNode<Table>
                 else
                 {
                     cellControl.Classes.Remove("Header");
+                }
+
+                if (columnIndex + cell.ColumnSpan >= table.ColumnDefinitions.Count)
+                {
+                    cellControl.Classes.Add("LastColumn");
+                }
+                else
+                {
+                    cellControl.Classes.Remove("LastColumn");
+                }
+
+                if (rowIndex == lastRowIndex)
+                {
+                    cellControl.Classes.Add("LastRow");
+                }
+                else
+                {
+                    cellControl.Classes.Remove("LastRow");
                 }
 
                 if (columnIndex >= table.ColumnDefinitions.Count) continue;
