@@ -154,3 +154,4 @@ public class TableNode : BlockNode<Table>
         return cellIndex > 0;
     }
 }
+
