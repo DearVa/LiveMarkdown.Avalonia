@@ -4,8 +4,8 @@
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <Title>LiveMarkdown.Avalonia.Math</Title>
     <Authors>DearVa</Authors>
-    <Description>This is a extension package for LiveMarkdown.Avalonia that adds support for rendering LaTeX math expressions using CSharpMath.
-      It leverages the Sylinko.CSharpMath.Avalonia library to provide high-quality rendering of mathematical notation within Markdown content.
+    <Description>This is an extension package for LiveMarkdown.Avalonia that adds support for rendering LaTeX math expressions using RaTeX.
+      It leverages RaTeX.Avalonia for native mathematical notation rendering within Markdown content.
     </Description>
     <PackageProjectUrl>https://github.com/DearVa/LiveMarkdown.Avalonia</PackageProjectUrl>
     <PackageIcon>icon.png</PackageIcon>
@@ -20,7 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Sylinko.CSharpMath.Avalonia"/>
+    <PackageReference Include="RaTeX.Avalonia"/>
   </ItemGroup>
 
   <ItemGroup>

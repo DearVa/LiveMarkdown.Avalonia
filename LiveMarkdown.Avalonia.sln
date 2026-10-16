@@ -48,8 +48,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveMarkdown.Avalonia.Tests", "tests\LiveMarkdown.Avalonia.Tests\LiveMarkdown.Avalonia.Tests.csproj", "{D406D9F1-9151-404C-8224-B41F49482E31}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassicDiagnostics.Avalonia", "..\ClassicDiagnostics.Avalonia\src\ClassicDiagnostics.Avalonia.csproj", "{361D2903-C16B-42A8-9AD7-5774D5CC890A}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -108,10 +106,6 @@ Global
 		{D406D9F1-9151-404C-8224-B41F49482E31}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D406D9F1-9151-404C-8224-B41F49482E31}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D406D9F1-9151-404C-8224-B41F49482E31}.Release|Any CPU.Build.0 = Release|Any CPU
-		{361D2903-C16B-42A8-9AD7-5774D5CC890A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{361D2903-C16B-42A8-9AD7-5774D5CC890A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{361D2903-C16B-42A8-9AD7-5774D5CC890A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{361D2903-C16B-42A8-9AD7-5774D5CC890A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -119,6 +113,5 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{5CD2BE29-503B-47F0-B2E3-EBD59D333D9D} = {7DA58198-8879-4C03-8607-C631E63DCF37}
 		{D406D9F1-9151-404C-8224-B41F49482E31} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
-		{361D2903-C16B-42A8-9AD7-5774D5CC890A} = {7DA58198-8879-4C03-8607-C631E63DCF37}
 	EndGlobalSection
 EndGlobal

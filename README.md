@@ -40,7 +40,7 @@ updating, **especially when streaming large model outputs**.
 - 🖼️ **Image support**: Load online, local even `avares` images asynchronously
 - ✍️ **Selectable text**: Text can be selected across different Markdown elements
 - 🔎 **Text search and customizable highlights**: Search rendered or off-screen Markdown with shared literal matching, custom matchers, and CSS-like highlight styles
-- 🧮 **LaTeX support**: Render mathematical expressions using [CSharpMath](https://github.com/verybadcat/CSharpMath)
+- 🧮 **LaTeX support**: Render mathematical expressions using [RaTeX](https://github.com/Sylinko/RaTeX.Net)
 - 🖋️ **Mermaid diagram full support**: Render flowcharts, sequence diagrams, and more using [Mermaider](https://github.com/nullean/mermaider)
 - 🛠️ **Extensible Markdown pipeline**: Register custom Markdown nodes and extend the rendering pipeline
 
@@ -772,9 +772,9 @@ Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more inform
 - **TextMateSharp** - [MIT License](https://github.com/danipen/TextMateSharp/blob/master/LICENSE.md)
   - Syntax highlighting for code blocks
   - Source repo: https://github.com/danipen/TextMateSharp
-- **CSharpMath** - [MIT License](https://github.com/verybadcat/CSharpMath/blob/master/License)
+- **RaTeX / RaTeX.Avalonia** - [MIT License](https://github.com/Sylinko/RaTeX.Net/blob/main/LICENSE)
   - LaTeX rendering support
-  - Source repo: https://github.com/verybadcat/CSharpMath
+  - Source repo: https://github.com/Sylinko/RaTeX.Net
 - **Mermaider** - [MIT License](https://github.com/nullean/mermaider/blob/main/LICENSE.txt)
   - LA pure dotnet mermaid parser, layout engine AND renderer, no js runtime, AOT ready.
   - Source repo: https://github.com/nullean/mermaider

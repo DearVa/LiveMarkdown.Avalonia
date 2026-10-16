@@ -14,10 +14,10 @@
     <PackageReference Include="Avalonia"/>
     <PackageReference Include="Avalonia.Fonts.Inter"/>
     <PackageReference Include="CommunityToolkit.Mvvm"/>
+    <PackageReference Include="ClassicDiagnostics.Avalonia"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\ClassicDiagnostics.Avalonia\src\ClassicDiagnostics.Avalonia.csproj" />
     <ProjectReference Include="..\..\..\3rd\shad-ui\src\ShadUI\ShadUI.csproj"/>
     <ProjectReference Include="..\..\LiveMarkdown.Avalonia.Math\LiveMarkdown.Avalonia.Math.csproj"/>
     <ProjectReference Include="..\..\LiveMarkdown.Avalonia.Mermaid\LiveMarkdown.Avalonia.Mermaid.csproj"/>
