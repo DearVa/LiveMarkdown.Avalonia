@@ -66,6 +66,8 @@ Mixed scripts: $\text{中文 English 日本語 한국어} + x_1$.
 
 Single-character emoji fallback: $\text{结果 ★ 😀} = 42$.
 
+Measured fallback in fractions and scripts: $\frac{\text{中文😀}}{\text{日本語}} + \text{한}_i^2$.
+
 $$
 \text{总成本} = \sum_{i=1}^{n} \text{单价}_i \times \text{数量}_i
 $$

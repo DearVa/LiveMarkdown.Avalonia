@@ -92,10 +92,26 @@ internal sealed class MathPresenter : Panel
                 {
                     _parseError = error.NativeMessage ?? "Unable to render formula.";
                 }
+                else
+                {
+                    // Keep node updates synchronous; only fallback glyphs need a second layout.
+                    var metrics = FormulaLayout.MeasureFallbackGlyphs(displayList);
+                    if (metrics.Length > 0 &&
+                        !Ratex.TryParseAndLayoutWithFallbackMetrics(_source!, metrics, options, out displayList, out error))
+                    {
+                        _parseError = error.NativeMessage ?? "Unable to render formula.";
+                    }
+                }
             }
             catch (ArgumentException ex)
             {
                 // Streaming input may temporarily contain an unpaired surrogate or NUL.
+                displayList = null;
+                _parseError = ex.Message;
+            }
+            catch (Exception ex) when (ex is RatexRenderException or InvalidOperationException or IOException)
+            {
+                displayList = null;
                 _parseError = ex.Message;
             }
         }
