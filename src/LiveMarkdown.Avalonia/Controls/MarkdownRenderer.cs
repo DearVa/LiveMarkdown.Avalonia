@@ -203,9 +203,8 @@ public partial class MarkdownRenderer : Control
     private void ClearSelectionOnPress(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-        if (string.IsNullOrEmpty(SelectedText)) return;
-        ClearSelection(GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot()));
-        UpdateCanCopy();
+        if (!CanCopy) return;
+        ClearSelection();
     }
 
     private void ApplyDocumentUpdate(MarkdownDocumentUpdate? value)

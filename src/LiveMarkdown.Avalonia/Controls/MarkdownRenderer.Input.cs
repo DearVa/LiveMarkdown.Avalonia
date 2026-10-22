@@ -1,7 +1,5 @@
-﻿using System.Text;
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -29,7 +27,7 @@ public partial class MarkdownRenderer
             new KeyGesture(Key.C, KeyModifiers.Control));
 
     /// <summary>
-    /// Gets whether there is any text selected that can be copied.
+    /// Gets whether there is any text selected in the current selection scope that can be copied.
     /// </summary>
     public bool CanCopy
     {
@@ -49,33 +47,49 @@ public partial class MarkdownRenderer
     /// <summary>
     /// Gets the selected text from all selectable blocks in the renderer's selection scope.
     /// </summary>
-    public string SelectedText
+    public string SelectedText => GetSelectionScope().GetSelectedText();
+
+    private MarkdownSelectionScope? selectionScope;
+    private MarkdownSelectionScope? interactionScope;
+
+    private MarkdownSelectionScope GetSelectionScope()
     {
-        get
-        {
-            var allBlocks = GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot());
+        RefreshSelectionScope();
+        return selectionScope!;
+    }
 
-            var sb = new StringBuilder();
-            var isFirst = true;
+    internal void RefreshSelectionScope()
+    {
+        var scope = MarkdownSelectionScope.Get(GetSelectionScopeRoot());
+        if (selectionScope == scope) return;
+        CancelSelectionInteraction();
+        selectionScope?.Remove(this);
+        selectionScope = scope;
+        scope.Add(this);
+    }
 
-            foreach (var block in allBlocks)
-            {
-                if (IsNestedBlock(block)) continue;
+    internal void SetCanCopy(bool value) => CanCopy = value;
 
-                var text = block.ActualSelectedText;
-                if (string.IsNullOrEmpty(text)) continue;
+    internal void CancelSelectionInteraction() => EndPointerInteraction();
 
-                if (!isFirst) sb.AppendLine();
-                sb.Append(text);
-                isFirst = false;
-            }
+    private void ReleaseSelectionScope()
+    {
+        EndPointerInteraction();
+        selectionScope?.Remove(this);
+        selectionScope = null;
+    }
 
-            return sb.ToString();
-        }
+    internal void ReleaseSelectionScopeIfOutsideRoot()
+    {
+        if (selectionScope is { } scope && !scope.Contains(this)) ReleaseSelectionScope();
     }
 
     // Anchor point where the drag started (Block + Offset)
-    private (MarkdownTextBlock Block, int Offset)? _selectionAnchor;
+    private (MarkdownTextBlock Block, int Offset)? _selectionAnchor
+    {
+        get => interactionScope?.Anchor;
+        set => interactionScope!.Anchor = value;
+    }
 
     private enum PointerInteractionState
     {
@@ -98,9 +112,7 @@ public partial class MarkdownRenderer
     private MarkdownTextBlock? _contextMenuBlock;
     private Link? _contextMenuLink;
 
-    // Cache of all blocks in the current scope to avoid frequent VisualTree traversal during move.
-    // Built on PointerPressed, cleared when the interaction ends.
-    private MarkdownTextBlock[]? _activeScopeBlocks;
+    private MarkdownTextBlock[]? _activeScopeBlocks => interactionScope?.ActiveBlocks;
 
     private DispatcherTimer? _selectionAutoScrollTimer;
     private Point? _lastSelectionPointerPosition;
@@ -108,11 +120,18 @@ public partial class MarkdownRenderer
     private MarkdownTextBlock? _lastSelectionTargetBlock;
 
     /// <inheritdoc/>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        RefreshSelectionScope();
+    }
+
+    /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        EndPointerInteraction();
         ClearContextMenuCandidate();
         ClearPointerOverBlock();
+        ReleaseSelectionScope();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -148,7 +167,9 @@ public partial class MarkdownRenderer
         {
             ClearContextMenuCandidate();
 
-            _activeScopeBlocks = [.. GetVisibleMarkdownTextBlockDescendants(ResolveSelectionScopeRoot(targetBlock, this))];
+            var scope = MarkdownSelectionScope.Get(ResolveSelectionScopeRoot(targetBlock, this));
+            scope.BeginInteraction(this);
+            interactionScope = scope;
             _interactionPointer = e.Pointer;
             _interactionStartPoint = point.Position;
             _pendingLinkBlock = targetBlock;
@@ -258,6 +279,16 @@ public partial class MarkdownRenderer
             var handled = TryOpenLinkContextMenu(e);
             ClearContextMenuCandidate();
             e.Handled = handled;
+
+            // Blocks delegate input here, bypassing Control's source-only context request.
+            if (!handled && e.Source is MarkdownTextBlock block &&
+                block.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault() == this)
+            {
+                var args = new ContextRequestedEventArgs(e);
+                block.RaiseEvent(args);
+                e.Handled = args.Handled;
+            }
+
             base.OnPointerReleased(e);
             return;
         }
@@ -344,7 +375,6 @@ public partial class MarkdownRenderer
 
         Focus();
         if (_activeScopeBlocks is not null) ClearSelection(_activeScopeBlocks);
-        UpdateCanCopy();
 
         TrackSelectionPointer(pointerEvent);
         _lastSelectionTargetBlock = block;
@@ -387,7 +417,6 @@ public partial class MarkdownRenderer
 
         Focus();
         ClearSelection(_activeScopeBlocks);
-        UpdateCanCopy();
 
         _selectionAnchor = (block, position);
         _lastSelectionTargetBlock = block;
@@ -456,8 +485,8 @@ public partial class MarkdownRenderer
         _pendingLinkBlock = null;
         _pendingLink = null;
         _pendingLinkPosition = 0;
-        _activeScopeBlocks = null;
-        _selectionAnchor = null;
+        interactionScope?.EndInteractionFor(this);
+        interactionScope = null;
         _lastSelectionPointerPosition = null;
         _lastSelectionPointerTopLevelPosition = null;
         _lastSelectionTargetBlock = null;
@@ -758,6 +787,7 @@ public partial class MarkdownRenderer
         }
         else if (Match(keymap.SelectAll))
         {
+            SelectAll();
             e.Handled = true;
         }
 
@@ -775,165 +805,6 @@ public partial class MarkdownRenderer
         if (string.IsNullOrEmpty(text)) return;
 
         await clipboard.SetTextAsync(text);
-    }
-
-    // -----------------------------------------------------------------------
-    // Core Logic: Selection Range Calculation
-    // -----------------------------------------------------------------------
-
-    private void UpdateSelectionRange((MarkdownTextBlock Block, int Offset) anchor, (MarkdownTextBlock Block, int Offset) focus)
-    {
-        if (_activeScopeBlocks == null) return;
-
-        var (startNode, endNode) = OrderPositions(anchor, focus);
-
-        foreach (var block in _activeScopeBlocks)
-        {
-            var selectionStart = GetEffectiveStart(block, startNode);
-            var selectionEnd = GetEffectiveEnd(block, endNode);
-
-            if (selectionStart < selectionEnd)
-            {
-                block.SetCurrentValue(SelectableTextBlock.SelectionStartProperty, selectionStart);
-                block.SetCurrentValue(SelectableTextBlock.SelectionEndProperty, selectionEnd);
-            }
-            else
-            {
-                block.ClearSelection();
-            }
-        }
-
-        UpdateCanCopy();
-    }
-
-    private int GetEffectiveStart(MarkdownTextBlock block, (MarkdownTextBlock Block, int Offset) startNode)
-    {
-        if (block == startNode.Block) return startNode.Offset;
-
-        // If block contains startNode (Parent of Start)
-        var pIndex = GetPlaceholderIndex(block, startNode.Block);
-        if (pIndex != -1) return pIndex + 1;
-
-        // If startNode contains block (Child of Start)
-        var parentIndex = GetPlaceholderIndex(startNode.Block, block);
-        if (parentIndex != -1)
-        {
-            // If start is before the placeholder for this block, then this block is fully after start.
-            if (startNode.Offset <= parentIndex) return 0;
-
-            // If start is after the placeholder, this block is fully before start.
-            return block.EscapedTextLength;
-        }
-
-        // Unrelated
-        if (ComparePositions(block, 0, startNode.Block, startNode.Offset) >= 0) return 0;
-        return block.EscapedTextLength;
-    }
-
-    private int GetEffectiveEnd(MarkdownTextBlock block, (MarkdownTextBlock Block, int Offset) endNode)
-    {
-        if (block == endNode.Block) return endNode.Offset;
-
-        // If block contains endNode (Parent of End)
-        var pIndex = GetPlaceholderIndex(block, endNode.Block);
-        if (pIndex != -1) return pIndex;
-
-        // If endNode contains block (Child of End)
-        var parentIndex = GetPlaceholderIndex(endNode.Block, block);
-        if (parentIndex != -1)
-        {
-            // If end is after the placeholder, this block is fully before end.
-            if (endNode.Offset > parentIndex) return block.EscapedTextLength;
-
-            // If end is before the placeholder, this block is fully after end.
-            return 0;
-        }
-
-        // Unrelated
-        var textLength = block.EscapedTextLength;
-        return ComparePositions(block, textLength, endNode.Block, endNode.Offset) <= 0 ? textLength : 0;
-    }
-
-    private ((MarkdownTextBlock Block, int Offset) Start, (MarkdownTextBlock Block, int Offset) End) OrderPositions(
-        (MarkdownTextBlock Block, int Offset) a,
-        (MarkdownTextBlock Block, int Offset) b)
-    {
-        return ComparePositions(a.Block, a.Offset, b.Block, b.Offset) <= 0 ? (a, b) : (b, a);
-    }
-
-    private int ComparePositions(MarkdownTextBlock blockA, int offsetA, MarkdownTextBlock blockB, int offsetB)
-    {
-        if (blockA == blockB) return offsetA.CompareTo(offsetB);
-
-        // Check hierarchy
-        // If A contains B
-        var placeholderInA = GetPlaceholderIndex(blockA, blockB);
-        if (placeholderInA != -1)
-        {
-            return offsetA <= placeholderInA ? -1 : 1;
-        }
-
-        // If B contains A
-        var placeholderInB = GetPlaceholderIndex(blockB, blockA);
-        if (placeholderInB != -1)
-        {
-            return offsetB <= placeholderInB ? 1 : -1;
-        }
-
-        // Fallback to list index
-        var idxA = Array.IndexOf(_activeScopeBlocks!, blockA);
-        var idxB = Array.IndexOf(_activeScopeBlocks!, blockB);
-        return idxA.CompareTo(idxB);
-    }
-
-    private static int GetPlaceholderIndex(MarkdownTextBlock parent, MarkdownTextBlock child)
-    {
-        if (parent.Inlines == null) return -1;
-
-        var currentOffset = 0;
-        if (parent.Inlines.Any(ProcessInlineOffset))
-        {
-            return currentOffset;
-        }
-
-        return -1;
-
-        // Helper to process inlines recursively
-        // returns true if child found
-        bool ProcessInlineOffset(Inline inline)
-        {
-            switch (inline)
-            {
-                case InlineUIContainer { Child: Visual childVisual } when IsVisualAncestor(childVisual, child):
-                    return true;
-                case InlineUIContainer:
-                    currentOffset++;
-                    break;
-                case Run run:
-                    currentOffset += run.Text?.Length ?? 0;
-                    break;
-                case LineBreak:
-                    currentOffset += Environment.NewLine.Length;
-                    break;
-                case Span span:
-                {
-                    if (span.Inlines.Any(ProcessInlineOffset)) return true;
-                    break;
-                }
-            }
-
-            return false;
-        }
-    }
-
-    private static bool IsVisualAncestor(Visual? ancestor, Visual? target)
-    {
-        while (target != null)
-        {
-            if (target == ancestor) return true;
-            target = target.GetVisualParent();
-        }
-        return false;
     }
 
     /// <summary>
@@ -992,12 +863,7 @@ public partial class MarkdownRenderer
         return scopeRoot ?? fallback;
     }
 
-    private static bool IsNestedBlock(MarkdownTextBlock child) => child.FindAncestorOfType<MarkdownTextBlock>() is not null;
-
-    private static int GetCaretPosition(MarkdownTextBlock block, PointerEventArgs e)
-    {
-        return GetCaretPosition(block, e.GetPosition(block));
-    }
+    private static int GetCaretPosition(MarkdownTextBlock block, PointerEventArgs e) => GetCaretPosition(block, e.GetPosition(block));
 
     private static int GetCaretPosition(MarkdownTextBlock block, Point point)
     {
@@ -1020,11 +886,12 @@ public partial class MarkdownRenderer
         var focusOffset = GetCaretPosition(targetBlock, pointInBlock);
         _lastSelectionTargetBlock = targetBlock;
 
-        UpdateSelectionRange(anchor, (targetBlock, focusOffset));
+        interactionScope!.UpdateRange(anchor, (targetBlock, focusOffset));
     }
 
     private void HandleClickSelection(MarkdownTextBlock block, int position, int clickCount)
     {
+        using var update = interactionScope!.BeginUpdate();
         var text = block.LayoutText;
         var start = position;
         var end = position;
@@ -1042,21 +909,18 @@ public partial class MarkdownRenderer
             case 3:
             {
                 SelectAll(GetVisibleMarkdownTextBlockDescendants(block));
-                UpdateCanCopy();
                 return;
             }
             // select all
             case 4 when _activeScopeBlocks is not null:
             {
                 SelectAll(_activeScopeBlocks);
-                UpdateCanCopy();
                 return;
             }
             // clear selection
             case 5 when _activeScopeBlocks is not null:
             {
                 ClearSelection(_activeScopeBlocks);
-                UpdateCanCopy();
                 return;
             }
         }
@@ -1069,26 +933,17 @@ public partial class MarkdownRenderer
             _selectionAnchor = (block, start);
         }
 
-        UpdateCanCopy();
     }
 
     /// <summary>
     /// Selects all text in the current selection scope.
     /// </summary>
-    public void SelectAll()
-    {
-        SelectAll(GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot()));
-        UpdateCanCopy();
-    }
+    public void SelectAll() => GetSelectionScope().SelectAll();
 
     /// <summary>
     /// Clears selection in the current selection scope.
     /// </summary>
-    public void ClearSelection()
-    {
-        ClearSelection(GetVisibleMarkdownTextBlockDescendants(GetSelectionScopeRoot()));
-        UpdateCanCopy();
-    }
+    public void ClearSelection() => GetSelectionScope().ClearSelection();
 
     private static void SelectAll(IEnumerable<MarkdownTextBlock> blocks)
     {
@@ -1103,21 +958,5 @@ public partial class MarkdownRenderer
     private static void ClearSelection(IEnumerable<MarkdownTextBlock> blocks)
     {
         foreach (var block in blocks) block.ClearSelection();
-    }
-
-    private static void ClearSelection(MarkdownTextBlockDescendants blocks)
-    {
-        foreach (var block in blocks) block.ClearSelection();
-    }
-
-    private void UpdateCanCopy()
-    {
-        if (_activeScopeBlocks is { } blocks)
-        {
-            CanCopy = blocks.Any(static block => block.SelectionStart != block.SelectionEnd);
-            return;
-        }
-
-        CanCopy = !string.IsNullOrEmpty(SelectedText);
     }
 }

@@ -123,13 +123,17 @@
             LinkClick="HandleMarkdownRendererLinkClick"
             MarkdownBuilder="{Binding MarkdownBuilder}">
             <md:MarkdownRenderer.ContextFlyout>
-              <MenuFlyout Placement="Bottom">
+              <MenuFlyout Placement="Pointer">
                 <MenuItem
                   x:Name="MarkdownRendererContextFlyoutCopyItem"
                   Command="{Binding $parent[md:MarkdownRenderer].Copy}"
                   Cursor="Hand" Header="Copy"
                   InputGesture="{Binding $parent[md:MarkdownRenderer].CopyGesture}"
                   IsEnabled="{Binding $parent[md:MarkdownRenderer].CanCopy}"/>
+                <MenuItem
+                  Command="{Binding $parent[md:MarkdownRenderer].SelectAll}"
+                  Cursor="Hand" Header="Select All"
+                  InputGesture="Ctrl+A"/>
               </MenuFlyout>
             </md:MarkdownRenderer.ContextFlyout>
             <md:MarkdownRenderer.LinkContextMenu>

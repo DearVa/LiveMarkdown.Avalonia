@@ -139,6 +139,28 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         Highlights.Changed += HandleHighlightsChanged;
     }
 
+    internal MarkdownSelectionScope? SelectionScope { get; private set; }
+
+    internal void RefreshSelectionScope()
+    {
+        var renderer = this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault();
+        renderer?.RefreshSelectionScope();
+        var root = MarkdownRenderer.ResolveSelectionScopeRoot(this, renderer ?? (Visual)this);
+        var scope = renderer is null && root == this && !GetIsSelectionScope(this)
+            ? null
+            : MarkdownSelectionScope.Get(root);
+        if (SelectionScope == scope) return;
+        ReleaseSelectionScope();
+        SelectionScope = scope;
+        scope?.UpdateSelection(this);
+    }
+
+    internal void ReleaseSelectionScope()
+    {
+        SelectionScope?.Remove(this);
+        SelectionScope = null;
+    }
+
     /// <summary>
     /// Gets the complete text represented by this block, including nested inline content.
     /// </summary>
@@ -317,12 +339,14 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        RefreshSelectionScope();
         InvalidateRendererTextState(e.AttachmentPoint);
     }
 
     /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        ReleaseSelectionScope();
         InvalidateRendererTextState(e.AttachmentPoint);
         base.OnDetachedFromVisualTree(e);
     }
@@ -338,6 +362,11 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+
+        if (change.Property == SelectionStartProperty || change.Property == SelectionEndProperty)
+        {
+            SelectionScope?.UpdateSelection(this);
+        }
 
         if (change.Property == IsVisibleProperty)
         {
