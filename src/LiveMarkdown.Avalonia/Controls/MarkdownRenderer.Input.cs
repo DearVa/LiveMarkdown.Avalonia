@@ -908,13 +908,13 @@ public partial class MarkdownRenderer
             // select section
             case 3:
             {
-                SelectAll(GetVisibleMarkdownTextBlockDescendants(block));
+                foreach (var b in GetVisibleMarkdownTextBlockDescendants(block)) b.SelectAll();
                 return;
             }
             // select all
             case 4 when _activeScopeBlocks is not null:
             {
-                SelectAll(_activeScopeBlocks);
+                foreach (var b in _activeScopeBlocks) b.SelectAll();
                 return;
             }
             // clear selection
@@ -944,16 +944,6 @@ public partial class MarkdownRenderer
     /// Clears selection in the current selection scope.
     /// </summary>
     public void ClearSelection() => GetSelectionScope().ClearSelection();
-
-    private static void SelectAll(IEnumerable<MarkdownTextBlock> blocks)
-    {
-        foreach (var block in blocks) block.SelectAll();
-    }
-
-    private static void SelectAll(MarkdownTextBlockDescendants blocks)
-    {
-        foreach (var block in blocks) block.SelectAll();
-    }
 
     private static void ClearSelection(IEnumerable<MarkdownTextBlock> blocks)
     {
