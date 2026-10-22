@@ -27,7 +27,7 @@
     <PackageVersion Include="Markdig" Version="1.1.2" />
     <PackageVersion Include="TextMateSharp" Version="$(TextMateSharpVersion)" />
     <PackageVersion Include="TextMateSharp.Grammars" Version="$(TextMateSharpVersion)" />
-    <PackageVersion Include="RaTeX.Avalonia" Version="0.1.0" />
+    <PackageVersion Include="RaTeX.Avalonia" Version="1.0.0" />
     <PackageVersion Include="Mermaider" Version="0.8.0" />
   </ItemGroup>
   <ItemGroup Label="Testing">
