@@ -44,10 +44,6 @@ updating, **especially when streaming large model outputs**.
 - 🖋️ **Mermaid diagram full support**: Render flowcharts, sequence diagrams, and more using [Mermaider](https://github.com/nullean/mermaider)
 - 🛠️ **Extensible Markdown pipeline**: Register custom Markdown nodes and extend the rendering pipeline
 
-> [!NOTE]
-> This library currently only supports `Append` and `Clear` operations on the Markdown content, which is enough for LLM
-> streaming scenarios.
-
 ## ❤️ Sponsor
 
 This project is fully open-source and free. Your support will improve this project a lot. I sincerely thank all my
