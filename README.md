@@ -50,7 +50,7 @@ This project is fully open-source and free. Your support will improve this proje
 sponsors!
 
 <a href="https://afdian.com/a/DearVa"><img width="200" src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.png" alt="爱发电"></a>
-<a href="https://app.fossa.com/projects/git%2Bgithub.com%2FDearVa%2FLiveMarkdown.Avalonia?ref=badge_shield" alt="FOSSA Status"><img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2FDearVa%2FLiveMarkdown.Avalonia.svg?type=shield"/></a>
+<a href="https://github.com/sponsors/Sylinko"><img width="180" src="https://github.com/Sylinko/.github/blob/main/images/github-sponsor.svg" alt="Sponsor on GitHub"></a>
 
 ## ✈️ Roadmap
 
