@@ -8,7 +8,7 @@ namespace LiveMarkdown.Avalonia;
 /// <summary>
 /// Locating inline-code chips from a point, and getting their bounds back.
 ///
-/// <para>Since <c>CodeInline</c> became a <see cref="Avalonia.Controls.Documents.Run"/> the chip is drawn
+/// <para>Since <c>CodeInline</c> became a <see cref="global::Avalonia.Controls.Documents.Run"/> the chip is drawn
 /// inside the block's own text layout, which is the right shape for rendering and leaves a host with no way to
 /// make a chip INTERACTIVE: there is no control to attach a handler to, and no bounds to position an
 /// affordance against. A run is not an input element.</para>

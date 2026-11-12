@@ -1078,6 +1078,9 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         {
         }
 
+        /// <summary>
+        /// Gets the exclusive end index of this span in the text block.
+        /// </summary>
         public int End => Start + Length;
     }
 
