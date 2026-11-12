@@ -97,13 +97,48 @@ internal static class MermaidTextRenderer
         bool centerVertically = false)
     {
         var originY = centerVertically ? y - text.Height / 2 : y - text.Height;
+        // A finite paragraph width includes the alignment offset applied by Avalonia itself.
+        var width = double.IsFinite(text.MaxTextWidth) ? text.MaxTextWidth : text.Width;
         var originX = alignment switch
         {
-            TextAlignment.Center => x - text.Width / 2,
-            TextAlignment.Right => x - text.Width,
+            TextAlignment.Center => x - width / 2,
+            TextAlignment.Right => x - width,
             _ => x
         };
         dc.DrawText(text, new Point(originX, originY));
+    }
+
+    /// <summary>
+    /// Wraps and trims a label inside its allocated cell using the same font metrics as drawing.
+    /// </summary>
+    public static void DrawTextInRect(
+        DrawingContext dc,
+        MermaidPresenter presenter,
+        string label,
+        Rect bounds,
+        double fontSize,
+        IBrush? brush,
+        FontWeight fontWeight = default,
+        TextAlignment alignment = TextAlignment.Center,
+        FontFamily? fontFamily = null)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var text = CreateFormattedText(presenter, label, fontSize, brush, alignment, fontWeight);
+        if (fontFamily is not null)
+        {
+            text.SetFontFamily(fontFamily);
+        }
+        text.MaxTextWidth = bounds.Width;
+        text.MaxTextHeight = bounds.Height;
+        text.Trimming = TextTrimming.CharacterEllipsis;
+        using (dc.PushClip(bounds))
+        {
+            dc.DrawText(text, new Point(bounds.X, bounds.Y + (bounds.Height - text.Height) / 2));
+        }
     }
 
     /// <summary>

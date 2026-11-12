@@ -260,6 +260,77 @@ public class ErRenderer : MermaidRenderer
     );
 
     /// <summary>
+    /// Resolves native label bounds after Mermaider routes the relationships.
+    /// </summary>
+    /// <remarks>
+    /// Mermaider's SVG path has its own post-layout collision pass. Reserve actual Avalonia label
+    /// rectangles here so drawing and the presenter's desired size use identical final positions.
+    /// </remarks>
+    internal PositionedErDiagram PrepareDiagram(MermaidPresenter presenter, PositionedErDiagram diagram)
+    {
+        var labels = new List<Rect>();
+        var relationships = new List<PositionedErRelationship>(diagram.Relationships.Count);
+        foreach (var relationship in diagram.Relationships)
+        {
+            if (relationship.Label.Length == 0 || relationship.Points.Count < 2)
+            {
+                relationships.Add(relationship);
+                continue;
+            }
+            var text = MermaidTextRenderer.CreateFormattedText(
+                presenter,
+                relationship.Label,
+                presenter.EdgeLabelFontSize,
+                presenter.SecondaryForeground,
+                TextAlignment.Center);
+            var size = new Size(text.Width + EdgeLabelPadding * 2, text.Height + EdgeLabelPadding);
+            var anchor = relationship.LabelPosition is { } position ? new Point(position.X, position.Y) : LongestSegmentMidpoint(relationship.Points);
+            var obstacles = diagram.Entities
+                .Where(entity => relationship.Entity1 != relationship.Entity2 || entity.Id != relationship.Entity1)
+                .Select(entity => new Rect(entity.X, entity.Y, entity.Width, entity.Height))
+                .Concat(labels).ToList();
+            var bounds = MermaidLabelPlacement.Place(size, anchor, obstacles);
+            labels.Add(bounds);
+            relationships.Add(relationship with { LabelPosition = new Mermaider.Models.Point(bounds.Center.X, bounds.Center.Y) });
+        }
+
+        var offsetX = labels.Count == 0 ? 0 : Math.Max(0, 8 - labels.Min(label => label.Left));
+        var offsetY = labels.Count == 0 ? 0 : Math.Max(0, 8 - labels.Min(label => label.Top));
+        return diagram with
+        {
+            Width = Math.Max(diagram.Width, labels.Count == 0 ? 0 : labels.Max(label => label.Right) + 8) + offsetX,
+            Height = Math.Max(diagram.Height, labels.Count == 0 ? 0 : labels.Max(label => label.Bottom) + 8) + offsetY,
+            Entities = diagram.Entities.Select(entity => entity with { X = entity.X + offsetX, Y = entity.Y + offsetY }).ToList(),
+            Relationships = relationships.Select(relationship => relationship with
+            {
+                Points = relationship.Points.Select(point => new Mermaider.Models.Point(point.X + offsetX, point.Y + offsetY)).ToList(),
+                LabelPosition = relationship.LabelPosition is { } labelPosition ?
+                    new Mermaider.Models.Point(labelPosition.X + offsetX, labelPosition.Y + offsetY) :
+                    null
+            }).ToList()
+        };
+    }
+
+    private static Point LongestSegmentMidpoint(IReadOnlyList<Mermaider.Models.Point> points)
+    {
+        var result = new Point(points[0].X, points[0].Y);
+        var longest = -1.0;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var dx = points[i].X - points[i - 1].X;
+            var dy = points[i].Y - points[i - 1].Y;
+            var length = dx * dx + dy * dy;
+            if (length <= longest)
+            {
+                continue;
+            }
+            longest = length;
+            result = new Point((points[i].X + points[i - 1].X) / 2, (points[i].Y + points[i - 1].Y) / 2);
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Draws a positioned entity-relationship diagram using this renderer part's styled values.
     /// </summary>
     internal void RenderDiagram(DrawingContext dc, MermaidPresenter presenter, PositionedErDiagram diagram)
@@ -304,15 +375,18 @@ public class ErRenderer : MermaidRenderer
             EdgeLabelPadding,
             EdgeLabelCornerRadius);
 
+    /// <inheritdoc/>
+    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property) => property == EdgeLabelPaddingProperty;
+
     private static void DrawEntityBox(DrawingContext dc, MermaidPresenter presenter, Style style, PositionedErEntity entity)
     {
         var rect = new Rect(entity.X, entity.Y, entity.Width, entity.Height);
+        dc.DrawRectangle(presenter.NodeFill, presenter.NodePen, rect, style.BoxCornerRadius, style.BoxCornerRadius);
         using (dc.PushClip(new RoundedRect(rect, style.BoxCornerRadius, style.BoxCornerRadius)))
         {
             var headerRect = new Rect(entity.X, entity.Y, entity.Width, entity.HeaderHeight);
             dc.DrawRectangle(presenter.GroupHeaderFill, presenter.NodePen, headerRect);
         }
-        dc.DrawRectangle(presenter.NodeFill, presenter.NodePen, rect, style.BoxCornerRadius, style.BoxCornerRadius);
 
         MermaidTextRenderer.DrawInlineText(
             dc,
@@ -453,7 +527,7 @@ public class ErRenderer : MermaidRenderer
             return;
         }
 
-        var midpoint = MermaidDrawingHelpers.Midpoint(relationship.Points);
+        var midpoint = relationship.LabelPosition ?? MermaidDrawingHelpers.Midpoint(relationship.Points);
         MermaidTextRenderer.DrawTextWithBackground(
             dc,
             presenter,

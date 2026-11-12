@@ -43,7 +43,7 @@ public sealed class GitGraphRenderer : MermaidRenderer
         AvaloniaProperty.Register<GitGraphRenderer, double>(nameof(CommitSpacing), 60);
 
     /// <summary>
-    /// Horizontal distance between consecutive simulated commits.
+    /// Minimum horizontal distance between commits; wider labels increase the spacing.
     /// </summary>
     public double CommitSpacing
     {
@@ -58,7 +58,7 @@ public sealed class GitGraphRenderer : MermaidRenderer
         AvaloniaProperty.Register<GitGraphRenderer, double>(nameof(LaneSpacing), 40);
 
     /// <summary>
-    /// Vertical distance between branch lanes.
+    /// Minimum vertical distance between branch lanes; text and tags reserve additional space.
     /// </summary>
     public double LaneSpacing
     {
@@ -88,7 +88,7 @@ public sealed class GitGraphRenderer : MermaidRenderer
         AvaloniaProperty.Register<GitGraphRenderer, double>(nameof(LeftPadding), 100);
 
     /// <summary>
-    /// Left padding before the first commit column.
+    /// Minimum left padding before the first commit column; branch labels can widen the gutter.
     /// </summary>
     public double LeftPadding
     {
@@ -270,7 +270,7 @@ public sealed class GitGraphRenderer : MermaidRenderer
     {
         var style = CreateStyleSnapshot();
         var simulation = Simulate(graph, style);
-        return Measure(simulation, style);
+        return Measure(simulation, FitLabelSpacing(Owner, simulation, style));
     }
 
     /// <summary>
@@ -280,6 +280,7 @@ public sealed class GitGraphRenderer : MermaidRenderer
     {
         var style = CreateStyleSnapshot();
         var simulation = Simulate(graph, style);
+        style = FitLabelSpacing(presenter, simulation, style);
         if (simulation.Commits.Count == 0)
         {
             return;
@@ -302,11 +303,61 @@ public sealed class GitGraphRenderer : MermaidRenderer
     }
 
     /// <inheritdoc/>
-    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property) =>
-        property.Name is nameof(CommitSpacing) or nameof(LaneSpacing) or nameof(CommitRadius) or
+    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property)
+    {
+        return property.Name is nameof(CommitSpacing) or nameof(LaneSpacing) or nameof(CommitRadius) or
             nameof(LeftPadding) or nameof(TopPadding) or nameof(TrailingPadding) or nameof(BottomPadding) or
             nameof(CommitLabelOffsetY) or nameof(TagOffsetY) or nameof(LinkStrokeThickness) or
             nameof(LabelFontSize) or nameof(TagFontSize) or nameof(BranchFontSize);
+    }
+
+    // Commit spacing and branch-label gutters are minimums, not fixed text allocations.
+    // Use the same measured dimensions in MeasureDiagram and RenderDiagram.
+    private static Style FitLabelSpacing(MermaidPresenter? presenter, SimulationResult simulation, Style style)
+    {
+        if (presenter is null || simulation.Commits.Count == 0)
+        {
+            return style;
+        }
+        var commitWidth = 0.0;
+        var branchWidth = 0.0;
+        var labelHeight = 0.0;
+        foreach (var commit in simulation.Commits)
+        {
+            var label = MermaidTextRenderer.CreateFormattedText(
+                presenter,
+                commit.Label ?? string.Empty,
+                style.LabelFontSize,
+                presenter.Foreground,
+                TextAlignment.Center);
+            var tag = MermaidTextRenderer.CreateFormattedText(
+                presenter,
+                commit.Tag ?? string.Empty,
+                style.TagFontSize,
+                presenter.Foreground,
+                TextAlignment.Center,
+                FontWeight.Medium);
+            commitWidth = Math.Max(commitWidth, Math.Max(label.Width, tag.Width + TagPillHorizontalPadding * 2));
+            labelHeight = Math.Max(labelHeight, label.Height);
+        }
+        foreach (var branch in simulation.Branches)
+        {
+            var text = MermaidTextRenderer.CreateFormattedText(
+                presenter,
+                branch.Name,
+                style.BranchFontSize,
+                presenter.Foreground,
+                TextAlignment.Left,
+                FontWeight.SemiBold);
+            branchWidth = Math.Max(branchWidth, text.Width + BranchPillHorizontalPadding * 2);
+        }
+        return style with
+        {
+            CommitSpacing = Math.Max(style.CommitSpacing, commitWidth + 20),
+            LeftPadding = Math.Max(style.LeftPadding, branchWidth + commitWidth / 2 + 20),
+            LaneSpacing = Math.Max(style.LaneSpacing, style.CommitLabelOffsetY - style.TagOffsetY + labelHeight + 12)
+        };
+    }
 
     private static Size Measure(SimulationResult simulation, Style style)
     {
@@ -504,6 +555,10 @@ public sealed class GitGraphRenderer : MermaidRenderer
                         branches[branch.Name] = lane;
                         branchColors[branch.Name] = color;
                         branchList.Add(new BranchInfo(branch.Name, lane, color));
+                        if (branchHeads.TryGetValue(currentBranch, out var forkIndex))
+                        {
+                            branchHeads[branch.Name] = forkIndex;
+                        }
                     }
 
                     currentBranch = branch.Name;

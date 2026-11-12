@@ -48,7 +48,7 @@ public class ClassRenderer : MermaidRenderer
     /// Defines the <see cref="MemberRowHeight"/> property.
     /// </summary>
     public static readonly StyledProperty<double> MemberRowHeightProperty =
-        AvaloniaProperty.Register<ClassRenderer, double>(nameof(MemberRowHeight), 20);
+        AvaloniaProperty.Register<ClassRenderer, double>(nameof(MemberRowHeight), 28);
 
     /// <summary>
     /// Vertical spacing allocated to each attribute or method row.
@@ -121,6 +121,24 @@ public class ClassRenderer : MermaidRenderer
     public void RenderDiagram(DrawingContext dc, MermaidPresenter presenter, PositionedClassDiagram diagram)
     {
         var style = CreateStyleSnapshot();
+        foreach (var ns in diagram.Namespaces)
+        {
+            dc.DrawRectangle(
+                presenter.GroupFill,
+                presenter.GroupPen,
+                new Rect(ns.X, ns.Y, ns.Width, ns.Height),
+                style.BoxCornerRadius,
+                style.BoxCornerRadius);
+            MermaidTextRenderer.DrawTextInRect(
+                dc,
+                presenter,
+                ns.Name,
+                new Rect(ns.X + 8, ns.Y, ns.Width - 16, 28),
+                presenter.GroupHeaderFontSize,
+                presenter.Foreground,
+                FontWeight.SemiBold,
+                TextAlignment.Left);
+        }
         foreach (var relationship in diagram.Relationships)
         {
             DrawRelationship(dc, presenter, style, relationship);
@@ -128,7 +146,22 @@ public class ClassRenderer : MermaidRenderer
 
         foreach (var cls in diagram.Classes)
         {
-            DrawClassBox(dc, presenter, style, cls);
+            if (cls.IsLollipopTarget)
+            {
+                var center = new Point(cls.X + cls.Width / 2, cls.Y + 8);
+                dc.DrawEllipse(presenter.NodeFill, presenter.NodePen, center, 8, 8);
+                MermaidTextRenderer.DrawTextInRect(
+                    dc,
+                    presenter,
+                    cls.Label,
+                    new Rect(cls.X, cls.Y + 22, cls.Width, cls.Height - 22),
+                    presenter.NodeLabelFontSize,
+                    presenter.Foreground);
+            }
+            else
+            {
+                DrawClassBox(dc, presenter, style, cls);
+            }
         }
 
         foreach (var relationship in diagram.Relationships)
@@ -154,12 +187,12 @@ public class ClassRenderer : MermaidRenderer
     private static void DrawClassBox(DrawingContext dc, MermaidPresenter presenter, Style style, PositionedClassNode cls)
     {
         var rect = new Rect(cls.X, cls.Y, cls.Width, cls.Height);
+        dc.DrawRectangle(presenter.NodeFill, presenter.NodePen, rect, style.BoxCornerRadius, style.BoxCornerRadius);
         using (dc.PushClip(new RoundedRect(rect, style.BoxCornerRadius, style.BoxCornerRadius)))
         {
             var headerRect = new Rect(cls.X, cls.Y, cls.Width, cls.HeaderHeight);
             dc.DrawRectangle(presenter.GroupHeaderFill, presenter.NodePen, headerRect);
         }
-        dc.DrawRectangle(presenter.NodeFill, presenter.NodePen, rect, style.BoxCornerRadius, style.BoxCornerRadius);
 
         var nameY = cls.Y + cls.HeaderHeight / 2;
         if (cls.Annotation is { Length: > 0 } annotation)
@@ -198,25 +231,73 @@ public class ClassRenderer : MermaidRenderer
         var attrTop = cls.Y + cls.HeaderHeight;
         DrawSeparator(dc, presenter, cls.X, attrTop, cls.X + cls.Width);
 
+        var typeWidth = 0.0;
+        foreach (var member in cls.Attributes.Concat(cls.Methods))
+        {
+            var text = MermaidTextRenderer.CreateFormattedText(
+                presenter,
+                member.Type ?? string.Empty,
+                presenter.MemberFontSize,
+                presenter.SecondaryForeground,
+                TextAlignment.Left);
+            text.SetFontFamily(style.MemberFontFamily);
+            typeWidth = Math.Max(typeWidth, text.Width);
+        }
+        var rowHeight = cls.Attributes.Count == 0 ? 0 : Math.Min(style.MemberRowHeight, cls.AttrHeight / cls.Attributes.Count);
         for (var i = 0; i < cls.Attributes.Count; i++)
         {
-            var y = attrTop + 4 + i * style.MemberRowHeight + style.MemberRowHeight / 2;
-            DrawMember(dc, presenter, style, cls.Attributes[i], cls.X + style.MemberPaddingX, y);
+            DrawMember(
+                dc,
+                presenter,
+                style,
+                cls.Attributes[i],
+                new Rect(cls.X + style.MemberPaddingX, attrTop + i * rowHeight, cls.Width - style.MemberPaddingX * 2, rowHeight),
+                typeWidth);
         }
 
         var methodTop = attrTop + cls.AttrHeight;
         DrawSeparator(dc, presenter, cls.X, methodTop, cls.X + cls.Width);
 
+        rowHeight = cls.Methods.Count == 0 ? 0 : Math.Min(style.MemberRowHeight, cls.MethodHeight / cls.Methods.Count);
         for (var i = 0; i < cls.Methods.Count; i++)
         {
-            var y = methodTop + 4 + i * style.MemberRowHeight + style.MemberRowHeight / 2;
-            DrawMember(dc, presenter, style, cls.Methods[i], cls.X + style.MemberPaddingX, y);
+            DrawMember(
+                dc,
+                presenter,
+                style,
+                cls.Methods[i],
+                new Rect(cls.X + style.MemberPaddingX, methodTop + i * rowHeight, cls.Width - style.MemberPaddingX * 2, rowHeight),
+                typeWidth);
         }
     }
 
-    private static void DrawMember(DrawingContext dc, MermaidPresenter presenter, Style style, ClassMember member, double x, double y)
+    private static void DrawMember(DrawingContext dc, MermaidPresenter presenter, Style style, ClassMember member, Rect cell, double typeWidth)
     {
-        var text = BuildMemberText(member);
+        const double columnGap = 12;
+        const double visibilityWidth = 14;
+        const double minimumNameWidth = 24;
+
+        var hasType = typeWidth > 0;
+        typeWidth = Math.Min(typeWidth, Math.Max(0, cell.Width - columnGap - visibilityWidth - minimumNameWidth));
+        if (hasType)
+        {
+            MermaidTextRenderer.DrawTextInRect(
+                dc,
+                presenter,
+                member.Type ?? string.Empty,
+                new Rect(cell.X, cell.Y, typeWidth, cell.Height),
+                presenter.MemberFontSize,
+                presenter.SecondaryForeground,
+                alignment: TextAlignment.Left,
+                fontFamily: style.MemberFontFamily);
+        }
+        var nameX = cell.X + (hasType ? typeWidth + columnGap : 0);
+        var nameWidth = cell.Right - nameX - visibilityWidth;
+        if (nameWidth <= 0 || cell.Height <= 0)
+        {
+            return;
+        }
+        var text = member.IsMethod ? $"{member.Name}({member.Params ?? string.Empty})" : member.Name;
         var formatted = MermaidTextRenderer.CreateFormattedText(
             presenter,
             text,
@@ -226,6 +307,9 @@ public class ClassRenderer : MermaidRenderer
             FontWeight.Medium);
 
         formatted.SetFontFamily(style.MemberFontFamily);
+        formatted.MaxTextWidth = nameWidth;
+        formatted.MaxTextHeight = cell.Height;
+        formatted.Trimming = TextTrimming.CharacterEllipsis;
         if (member.IsAbstract)
         {
             formatted.SetFontStyle(FontStyle.Italic);
@@ -236,21 +320,26 @@ public class ClassRenderer : MermaidRenderer
             formatted.SetTextDecorations(TextDecorations.Underline);
         }
 
-        MermaidTextRenderer.DrawFormattedText(dc, formatted, x, y, TextAlignment.Left, centerVertically: true);
-    }
-
-    private static string BuildMemberText(ClassMember member)
-    {
+        using (dc.PushClip(cell))
+        {
+            MermaidTextRenderer.DrawFormattedText(dc, formatted, nameX, cell.Center.Y, TextAlignment.Left, centerVertically: true);
+        }
         var visibility = member.Visibility switch
         {
-            ClassVisibility.Public => "+ ",
-            ClassVisibility.Private => "- ",
-            ClassVisibility.Protected => "# ",
-            ClassVisibility.Package => "~ ",
+            ClassVisibility.Public => "+",
+            ClassVisibility.Private => "-",
+            ClassVisibility.Protected => "#",
+            ClassVisibility.Package => "~",
             _ => string.Empty
         };
-        var name = member.IsMethod ? $"{member.Name}({member.Params ?? string.Empty})" : member.Name;
-        return member.Type is { Length: > 0 } ? $"{visibility}{name}: {member.Type}" : $"{visibility}{name}";
+        MermaidTextRenderer.DrawTextInRect(
+            dc,
+            presenter,
+            visibility,
+            new Rect(cell.Right - visibilityWidth, cell.Y, visibilityWidth, cell.Height),
+            presenter.MemberFontSize,
+            presenter.SecondaryForeground,
+            fontFamily: style.MemberFontFamily);
     }
 
     private static void DrawRelationship(DrawingContext dc, MermaidPresenter presenter, Style style, PositionedClassRelationship relationship)
@@ -297,7 +386,7 @@ public class ClassRenderer : MermaidRenderer
                 MermaidDrawingHelpers.DrawArrowHead(dc, null, presenter.LinePen, from, to, style.MarkerSize, filled: false);
                 break;
             case ClassRelationType.Lollipop:
-                MermaidDrawingHelpers.DrawCircleMarker(dc, background, presenter.LinePen, to, style.MarkerSize / 2);
+                // Mermaider positions the interface as a separate circular node, so the edge needs no marker.
                 break;
         }
     }
@@ -393,6 +482,10 @@ public class ClassRenderer : MermaidRenderer
 
     private static void DrawNote(DrawingContext dc, MermaidPresenter presenter, PositionedGraphNote note)
     {
+        if (note.LineFrom is { } from && note.LineTo is { } to && presenter.DottedLinePen is { } pen)
+        {
+            dc.DrawLine(pen, new Point(from.X, from.Y), new Point(to.X, to.Y));
+        }
         dc.DrawRectangle(
             presenter.AccentFill,
             presenter.AccentPen,

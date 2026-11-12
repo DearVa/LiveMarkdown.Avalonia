@@ -2,7 +2,6 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Mermaider.Models;
-using Point = Avalonia.Point;
 
 namespace LiveMarkdown.Avalonia;
 
@@ -26,8 +25,6 @@ public sealed class TreemapRenderer : MermaidRenderer
     // SVG-compatible thresholds: labels are suppressed in tiny rectangles where they become noise.
     private const double MinimumLabelWidth = 30;
     private const double MinimumLabelHeight = 16;
-    private const double MinimumValueHeight = 30;
-    private const double MinimumChildHeight = 10;
 
     // Stable visual constants from the SVG renderer. They affect paint opacity and label placement.
     private const byte RootFillAlpha = 0xCC;
@@ -35,8 +32,6 @@ public sealed class TreemapRenderer : MermaidRenderer
     private const byte ValueTextAlpha = 0xCC;
     private const double RectCornerRadius = 3;
     private const double RectStrokeThickness = 1;
-    private const double LabelTopOffset = 12;
-    private const double ValueLabelOffset = 14;
 
     /// <summary>
     /// Defines the <see cref="ChartWidth"/> property.
@@ -188,6 +183,8 @@ public sealed class TreemapRenderer : MermaidRenderer
     private Style CreateStyleSnapshot() =>
         new(ChartWidth, ChartHeight, CellPadding, HeaderHeight, LabelFontSize, ValueFontSize, NodePalette);
 
+    // Squarified rows follow Mermaider 0.16: add cells while the worst aspect ratio improves,
+    // then consume a strip from the remaining area. Parent captions have their own header band.
     private static void Squarify(
         IReadOnlyList<TreemapNode> nodes,
         double x,
@@ -198,87 +195,90 @@ public sealed class TreemapRenderer : MermaidRenderer
         int depth,
         Style style)
     {
-        var total = 0.0;
-        foreach (var node in nodes)
-        {
-            total += node.ComputedValue;
-        }
-
+        var sorted = nodes.Where(node => node.ComputedValue > 0).OrderByDescending(node => node.ComputedValue).ToList();
+        var total = sorted.Sum(node => node.ComputedValue);
         if (total <= 0 || width <= 0 || height <= 0)
         {
             return;
         }
-
-        var sorted = new List<TreemapNode>(nodes);
-        sorted.Sort(static (a, b) => b.ComputedValue.CompareTo(a.ComputedValue));
-        LayoutRow(sorted, x, y, width, height, total, rects, depth, style);
-    }
-
-    private static void LayoutRow(
-        List<TreemapNode> nodes,
-        double x,
-        double y,
-        double width,
-        double height,
-        double total,
-        List<TreeRect> rects,
-        int depth,
-        Style style)
-    {
-        if (nodes.Count == 0 || total <= 0)
+        var areas = sorted.Select(node => node.ComputedValue * width * height / total).ToArray();
+        var index = 0;
+        while (index < sorted.Count && width > 0 && height > 0)
         {
-            return;
-        }
-
-        var isWide = width >= height;
-        var currentX = x;
-        var currentY = y;
-
-        foreach (var node in nodes)
-        {
-            var fraction = node.ComputedValue / total;
-            var rectWidth = isWide ? width * fraction : width;
-            var rectHeight = isWide ? height : height * fraction;
-            var color = GetPaletteColor(style.NodePalette, rects.Count);
-
-            rects.Add(
-                new TreeRect(
-                    currentX + style.CellPadding,
-                    currentY + style.CellPadding,
-                    rectWidth - style.CellPadding * 2,
-                    rectHeight - style.CellPadding * 2,
-                    node.Label,
-                    node.ComputedValue,
-                    color,
-                    depth));
-
-            if (node.Children.Count > 0)
+            var end = index + 1;
+            var side = Math.Min(width, height);
+            while (end < sorted.Count && WorstAspect(areas, index, end + 1, side) <= WorstAspect(areas, index, end, side))
             {
-                var innerY = currentY + style.CellPadding + style.HeaderHeight;
-                var innerHeight = rectHeight - style.CellPadding * 2 - style.HeaderHeight;
-                if (innerHeight > MinimumChildHeight)
+                end++;
+            }
+            var area = 0.0;
+            for (var i = index; i < end; i++)
+            {
+                area += areas[i];
+            }
+            var isColumn = width >= height;
+            var thickness = area / (isColumn ? height : width);
+            var cursor = isColumn ? y : x;
+            for (var i = index; i < end; i++)
+            {
+                var length = areas[i] / thickness;
+                var bounds = isColumn ? new Rect(x, cursor, thickness, length) : new Rect(cursor, y, length, thickness);
+                bounds = bounds.Deflate(style.CellPadding);
+                var node = sorted[i];
+                var hasChildren = node.Children.Count > 0;
+                rects.Add(
+                    new TreeRect(
+                        bounds.X,
+                        bounds.Y,
+                        bounds.Width,
+                        bounds.Height,
+                        node.Label,
+                        node.ComputedValue,
+                        GetPaletteColor(style.NodePalette, rects.Count),
+                        depth,
+                        hasChildren));
+                if (hasChildren)
                 {
+                    var header = Math.Max(style.HeaderHeight, style.LabelFontSize * 1.5 + 4);
                     Squarify(
                         node.Children,
-                        currentX + style.CellPadding,
-                        innerY,
-                        rectWidth - style.CellPadding * 2,
-                        innerHeight,
+                        bounds.X,
+                        bounds.Y + header,
+                        bounds.Width,
+                        bounds.Height - header,
                         rects,
                         depth + 1,
                         style);
                 }
+                cursor += length;
             }
-
-            if (isWide)
+            if (isColumn)
             {
-                currentX += rectWidth;
+                x += thickness;
+                width -= thickness;
             }
             else
             {
-                currentY += rectHeight;
+                y += thickness;
+                height -= thickness;
             }
+            index = end;
         }
+    }
+
+    private static double WorstAspect(double[] areas, int start, int end, double side)
+    {
+        var sum = 0.0;
+        var min = double.PositiveInfinity;
+        var max = 0.0;
+        for (var i = start; i < end; i++)
+        {
+            sum += areas[i];
+            min = Math.Min(min, areas[i]);
+            max = Math.Max(max, areas[i]);
+        }
+        var square = side * side;
+        return Math.Max(square * max / (sum * sum), sum * sum / (square * min));
     }
 
     private static void DrawRect(DrawingContext dc, MermaidPresenter presenter, Style style, TreeRect rect)
@@ -299,32 +299,30 @@ public sealed class TreemapRenderer : MermaidRenderer
             return;
         }
 
-        var textX = rect.X + rect.Width / 2;
-        var textY = rect.Y + LabelTopOffset;
-        MermaidTextRenderer.DrawText(
+        var headerHeight = Math.Max(style.HeaderHeight, style.LabelFontSize * 1.5 + 4);
+        var labelHeight = rect.HasChildren ? Math.Min(rect.Height, headerHeight) : rect.Height;
+        var hasValue = !rect.HasChildren && rect.Height >= style.LabelFontSize * 1.5 + style.ValueFontSize * 1.5 + 8;
+        if (hasValue)
+        {
+            labelHeight = Math.Min(labelHeight, rect.Height - style.ValueFontSize * 1.5 - 4);
+        }
+        MermaidTextRenderer.DrawTextInRect(
             dc,
             presenter,
             rect.Label,
-            textX,
-            textY,
+            new Rect(rect.X + 4, rect.Y + 2, Math.Max(0, rect.Width - 8), Math.Max(0, labelHeight - 4)),
             style.LabelFontSize,
             Brushes.White,
-            TextAlignment.Center,
-            centerVertically: true,
             FontWeight.SemiBold);
-
-        if (rect.Height > MinimumValueHeight)
+        if (hasValue)
         {
-            MermaidTextRenderer.DrawText(
+            MermaidTextRenderer.DrawTextInRect(
                 dc,
                 presenter,
                 rect.Value.ToString("0.##", CultureInfo.InvariantCulture),
-                textX,
-                textY + ValueLabelOffset,
+                new Rect(rect.X + 4, rect.Y + labelHeight, Math.Max(0, rect.Width - 8), rect.Height - labelHeight),
                 style.ValueFontSize,
-                new SolidColorBrush(Color.FromArgb(ValueTextAlpha, 255, 255, 255)),
-                TextAlignment.Center,
-                centerVertically: true);
+                new SolidColorBrush(Color.FromArgb(ValueTextAlpha, 255, 255, 255)));
         }
     }
 
@@ -333,5 +331,15 @@ public sealed class TreemapRenderer : MermaidRenderer
 
     private static Color WithAlpha(Color color, byte alpha) => new(alpha, color.R, color.G, color.B);
 
-    private sealed record TreeRect(double X, double Y, double Width, double Height, string Label, double Value, Color Color, int Depth);
+    private sealed record TreeRect(
+        double X,
+        double Y,
+        double Width,
+        double Height,
+        string Label,
+        double Value,
+        Color Color,
+        int Depth,
+        bool HasChildren
+    );
 }

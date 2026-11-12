@@ -354,10 +354,12 @@ public sealed class RadarRenderer : MermaidRenderer
     }
 
     /// <inheritdoc/>
-    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property) =>
-        property.Name is nameof(Radius) or nameof(CenterX) or nameof(LabelPadding) or nameof(TitleHeight) or
+    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property)
+    {
+        return property.Name is nameof(Radius) or nameof(CenterX) or nameof(LabelPadding) or nameof(TitleHeight) or
             nameof(ChartTopPadding) or nameof(RightPadding) or nameof(BottomPadding) or nameof(LegendWidth) or
-            nameof(LegendTopOffset) or nameof(LegendRowHeight);
+            nameof(LegendTopOffset) or nameof(LegendRowHeight) or nameof(TitleY) or nameof(TitleFontSize) or nameof(AxisLabelFontSize);
+    }
 
     private static Size Measure(RadarChart chart, Style style)
     {
@@ -373,7 +375,9 @@ public sealed class RadarRenderer : MermaidRenderer
     private static RadarLayoutMetrics CreateLayoutMetrics(RadarChart chart, Style style)
     {
         var hasTitle = chart.Title is { Length: > 0 };
-        var titleOffset = hasTitle ? style.TitleHeight : 0;
+        // Axis captions extend above the circle. Reserve that band below the title.
+        var titleBottom = style.TitleY + style.TitleFontSize / 2;
+        var titleOffset = hasTitle ? Math.Max(style.TitleHeight, titleBottom + style.AxisLabelFontSize + 12) : 0;
         var centerY = titleOffset + style.ChartTopPadding + style.Radius;
         var legendWidth = chart is { ShowLegend: true, Curves.Count: > 0 } ? style.LegendWidth : 0;
         var width = style.CenterX + style.Radius + style.LabelPadding + style.RightPadding + legendWidth;

@@ -23,7 +23,6 @@ public sealed class VennRenderer : MermaidRenderer
     // SVG-compatible placement multipliers. They encode Mermaid's compact illustrative layout.
     private const double TwoSetOffsetRatio = 0.55;
     private const double MultiSetArrangeRadiusRatio = 0.6;
-    private const double SetLabelDistanceRatio = 0.6;
 
     // Stable visual constants from the SVG renderer.
     private const byte SetFillAlpha = 0x59;
@@ -165,13 +164,47 @@ public sealed class VennRenderer : MermaidRenderer
                 position,
                 style.BaseRadius,
                 style.BaseRadius);
-
-            DrawSetLabel(dc, presenter, style, set, position, i, diagram.Sets.Count);
         }
 
+        var centroid = new Point(positions.Average(point => point.X), positions.Average(point => point.Y));
+        var occupied = new List<Rect>();
+        for (var i = 0; i < diagram.Sets.Count; i++)
+        {
+            var anchor = PushOutward(positions[i], centroid, diagram.Sets.Count == 1 ? 0 : style.BaseRadius * 0.55);
+            DrawLabel(diagram.Sets[i].Label, anchor, style.BaseRadius * 1.15, style.SetLabelFontSize, FontWeight.SemiBold);
+        }
         foreach (var union in diagram.Unions)
         {
-            DrawUnionLabel(dc, presenter, style, union, setPositions);
+            if (union.Label is not { Length: > 0 } label)
+            {
+                continue;
+            }
+            var members = union.SetIds.Where(setPositions.ContainsKey).Select(id => setPositions[id]).ToList();
+            if (members.Count == 0)
+            {
+                continue;
+            }
+            var anchor = new Point(members.Average(point => point.X), members.Average(point => point.Y));
+            if (members.Count < diagram.Sets.Count)
+            {
+                anchor = PushOutward(anchor, centroid, style.BaseRadius * 0.2);
+            }
+            DrawLabel(label, anchor, style.BaseRadius * 0.9, style.UnionLabelFontSize, FontWeight.Medium);
+        }
+
+        void DrawLabel(string label, Point anchor, double width, double fontSize, FontWeight weight)
+        {
+            var text = MermaidTextRenderer.CreateFormattedText(presenter, label, fontSize, presenter.Foreground, TextAlignment.Center, weight);
+            text.MaxTextWidth = Math.Max(1, width);
+            text.MaxTextHeight = fontSize * 3;
+            text.Trimming = TextTrimming.WordEllipsis;
+            var bounds = MermaidLabelPlacement.Place(
+                new Size(text.MaxTextWidth, text.Height),
+                anchor,
+                occupied,
+                new Rect(4, 4, Math.Max(0, style.CenterX * 2 - 8), Math.Max(0, style.CenterY * 2 - 8)));
+            occupied.Add(bounds);
+            MermaidTextRenderer.DrawTextInRect(dc, presenter, label, bounds, fontSize, presenter.Foreground, weight);
         }
     }
 
@@ -211,74 +244,11 @@ public sealed class VennRenderer : MermaidRenderer
         return positions;
     }
 
-    private static void DrawSetLabel(
-        DrawingContext dc,
-        MermaidPresenter presenter,
-        Style style,
-        VennSet set,
-        Point position,
-        int index,
-        int totalSets)
+    private static Point PushOutward(Point point, Point center, double distance)
     {
-        var angle = totalSets <= 1 ? 0 : (2 * Math.PI * index / totalSets) - (Math.PI / 2);
-        var labelDistance = totalSets <= 1 ? 0 : style.BaseRadius * SetLabelDistanceRatio;
-        var x = position.X + labelDistance * Math.Cos(angle);
-        var y = position.Y + labelDistance * Math.Sin(angle);
-
-        MermaidTextRenderer.DrawText(
-            dc,
-            presenter,
-            set.Label,
-            x,
-            y,
-            style.SetLabelFontSize,
-            presenter.Foreground,
-            TextAlignment.Center,
-            centerVertically: true,
-            FontWeight.SemiBold);
-    }
-
-    private static void DrawUnionLabel(
-        DrawingContext dc,
-        MermaidPresenter presenter,
-        Style style,
-        VennUnion union,
-        IReadOnlyDictionary<string, Point> setPositions)
-    {
-        if (union.Label is not { Length: > 0 })
-        {
-            return;
-        }
-
-        var x = 0.0;
-        var y = 0.0;
-        var count = 0;
-        foreach (var id in union.SetIds)
-        {
-            if (setPositions.TryGetValue(id, out var position))
-            {
-                x += position.X;
-                y += position.Y;
-                count++;
-            }
-        }
-
-        if (count == 0)
-        {
-            return;
-        }
-
-        MermaidTextRenderer.DrawText(
-            dc,
-            presenter,
-            union.Label,
-            x / count,
-            y / count,
-            style.UnionLabelFontSize,
-            presenter.Foreground,
-            TextAlignment.Center,
-            centerVertically: true,
-            FontWeight.Medium);
+        var delta = point - center;
+        var length = Math.Sqrt(delta.X * delta.X + delta.Y * delta.Y);
+        return length < 0.01 ? point : point + delta * (distance / length);
     }
 
     private static Color GetPaletteColor(IReadOnlyList<Color> palette, int index) =>

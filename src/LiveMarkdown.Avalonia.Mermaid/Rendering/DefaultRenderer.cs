@@ -197,6 +197,7 @@ public class DefaultRenderer : MermaidRenderer
     internal void RenderGraph(DrawingContext dc, MermaidPresenter presenter, PreparedPositionedGraph graph, MermaidRenderOptions? options = null)
     {
         var style = CreateStyleSnapshot(options);
+        using var offset = dc.PushTransform(Matrix.CreateTranslation(-graph.MinX, 0));
         foreach (var group in graph.Groups)
             DrawGroupBody(dc, presenter, style, group);
 
@@ -437,6 +438,19 @@ public class DefaultRenderer : MermaidRenderer
                     new AvaloniaPoint(x + w - altInset, y + h),
                     new AvaloniaPoint(x + altInset, y + h));
                 break;
+            case NodeShape.Parallelogram:
+            case NodeShape.ParallelogramAlt:
+                var lean = w * 0.15;
+                var isRight = node.Shape == NodeShape.Parallelogram;
+                MermaidDrawingHelpers.DrawPolygon(
+                    dc,
+                    fill,
+                    stroke,
+                    new AvaloniaPoint(x + (isRight ? lean : 0), y),
+                    new AvaloniaPoint(x + w - (isRight ? 0 : lean), y),
+                    new AvaloniaPoint(x + w - (isRight ? lean : 0), y + h),
+                    new AvaloniaPoint(x + (isRight ? 0 : lean), y + h));
+                break;
             case NodeShape.StateStart:
                 dc.DrawEllipse(
                     presenter.Foreground,
@@ -468,6 +482,10 @@ public class DefaultRenderer : MermaidRenderer
     private static void DrawNote(DrawingContext dc, MermaidPresenter presenter, PreparedPositionedNote preparedNote)
     {
         var note = preparedNote.Note;
+        if (note.LineFrom is { } from && note.LineTo is { } to && presenter.DottedLinePen is { } pen)
+        {
+            dc.DrawLine(pen, new AvaloniaPoint(from.X, from.Y), new AvaloniaPoint(to.X, to.Y));
+        }
         var rect = new Rect(note.X, note.Y, note.Width, note.Height);
         dc.DrawRectangle(presenter.AccentFill, presenter.AccentPen, rect, 6, 6);
 

@@ -940,7 +940,7 @@ public class MermaidPresenter : Control
                 return MermaidDiagramState.Empty;
             }
 
-            var size = default(Size);
+            Size size;
             var options = RenderOptions;
             if (options?.Strict is { } strict)
             {
@@ -1044,10 +1044,10 @@ public class MermaidPresenter : Control
         return diagram;
     }
 
-    private static PositionedErDiagram LayoutEr(MermaidInput input, MermaidRenderOptions? options, out Size size)
+    private PositionedErDiagram LayoutEr(MermaidInput input, MermaidRenderOptions? options, out Size size)
     {
         var provider = options?.LayoutProvider ?? Mermaider.MermaidRenderer.LayoutProvider;
-        var diagram = provider.LayoutEr(ErParser.Parse(input.Lines));
+        var diagram = UseRendererPart<ErRenderer>().PrepareDiagram(this, provider.LayoutEr(ErParser.Parse(input.Lines)));
         size = new Size(diagram.Width, diagram.Height);
         return diagram;
     }
@@ -1056,7 +1056,7 @@ public class MermaidPresenter : Control
     {
         var provider = options?.LayoutProvider ?? Mermaider.MermaidRenderer.LayoutProvider;
         var diagram = provider.LayoutFlowchart(FlowchartParser.Parse(input.Lines), options, options?.Strict);
-        size = new Size(diagram.Width, diagram.Height);
+        size = new Size(diagram.Width - diagram.MinX, diagram.Height);
         return PreparedPositionedGraph.Prepare(diagram);
     }
 
@@ -1064,7 +1064,7 @@ public class MermaidPresenter : Control
     {
         var provider = options?.LayoutProvider ?? Mermaider.MermaidRenderer.LayoutProvider;
         var diagram = provider.LayoutFlowchart(StateParser.Parse(input.Lines), options, options?.Strict);
-        size = new Size(diagram.Width, diagram.Height);
+        size = new Size(diagram.Width - diagram.MinX, diagram.Height);
         return PreparedPositionedGraph.Prepare(diagram);
     }
 

@@ -517,10 +517,13 @@ public class TimelineRenderer : MermaidRenderer
     }
 
     /// <inheritdoc/>
-    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property) =>
-        property.Name is nameof(PeriodWidth) or nameof(PeriodGap) or nameof(EventBoxHeight) or nameof(EventGap) or nameof(TimelineY) or
+    protected override bool ShouldInvalidatePresenterMeasure(AvaloniaProperty property)
+    {
+        return property.Name is nameof(PeriodWidth) or nameof(PeriodGap) or nameof(EventBoxHeight) or nameof(EventGap) or nameof(TimelineY) or
             nameof(TitleOffset) or nameof(LeftPadding) or nameof(RightPadding) or nameof(SectionPaddingY) or nameof(AxisBottomPadding) or
-            nameof(EventAreaBottomPadding);
+            nameof(EventAreaBottomPadding) or nameof(SectionBottomExtension) or nameof(EventFontSize) or nameof(PeriodFontSize) or
+            nameof(SectionFontSize) or nameof(SectionLabelOffset) or nameof(PeriodLabelOffset);
+    }
 
     private static Size Measure(TimelineDiagram diagram, Style style)
     {
@@ -554,7 +557,7 @@ public class TimelineRenderer : MermaidRenderer
         var axisTop = titleOffset + style.TimelineY;
         var width = style.LeftPadding + totalPeriods * (style.PeriodWidth + style.PeriodGap) + style.RightPadding;
         var eventAreaHeight = maxEvents * (style.EventBoxHeight + style.EventGap) + style.EventAreaBottomPadding;
-        var height = axisTop + style.AxisBottomPadding + eventAreaHeight + style.SectionPaddingY;
+        var height = axisTop + style.AxisBottomPadding + eventAreaHeight + style.SectionPaddingY + Math.Max(0, style.SectionBottomExtension);
         return new TimelineLayoutMetrics(hasTitle, axisTop, width, height);
     }
 
@@ -598,14 +601,16 @@ public class TimelineRenderer : MermaidRenderer
         double axisTop,
         double totalHeight)
     {
+        var labelY = axisTop - style.PeriodLabelOffset - style.PeriodFontSize * 1.5 - style.SectionLabelOffset;
+        var top = Math.Min(axisTop - style.SectionTopOffset, labelY - style.SectionFontSize);
         dc.DrawRectangle(
             new SolidColorBrush(WithAlpha(color, SectionFillAlpha)),
             null,
             new Rect(
                 sectionStartX - style.SectionPaddingX,
-                axisTop - style.SectionTopOffset,
+                top,
                 sectionWidth + style.SectionPaddingX * 2,
-                totalHeight - axisTop + style.SectionBottomExtension),
+                Math.Max(0, totalHeight - style.SectionPaddingY - top)),
             SectionCornerRadius,
             SectionCornerRadius);
 
@@ -614,7 +619,7 @@ public class TimelineRenderer : MermaidRenderer
             presenter,
             section.Name!,
             sectionStartX + sectionWidth / 2,
-            axisTop - style.SectionLabelOffset,
+            labelY,
             style.SectionFontSize,
             new SolidColorBrush(color),
             TextAlignment.Center,
@@ -638,16 +643,18 @@ public class TimelineRenderer : MermaidRenderer
             style.MarkerRadius,
             style.MarkerRadius);
 
-        MermaidTextRenderer.DrawText(
+        MermaidTextRenderer.DrawTextInRect(
             dc,
             presenter,
             period.Label,
-            cx,
-            axisTop - style.PeriodLabelOffset,
+            new Rect(
+                cx - style.PeriodWidth / 2,
+                axisTop - style.PeriodLabelOffset - style.PeriodFontSize * 1.5,
+                style.PeriodWidth,
+                style.PeriodFontSize * 1.5),
             style.PeriodFontSize,
             presenter.Foreground,
-            TextAlignment.Center,
-            fontWeight: FontWeight.SemiBold);
+            FontWeight.SemiBold);
 
         var eventY = axisTop + style.EventTopOffset;
         foreach (var evt in period.Events)
@@ -661,16 +668,13 @@ public class TimelineRenderer : MermaidRenderer
                 EventBoxCornerRadius,
                 EventBoxCornerRadius);
 
-            MermaidTextRenderer.DrawText(
+            MermaidTextRenderer.DrawTextInRect(
                 dc,
                 presenter,
                 evt,
-                cx,
-                eventY + style.EventBoxHeight / 2,
+                new Rect(boxX + 4, eventY + 2, Math.Max(0, boxWidth - 8), Math.Max(0, style.EventBoxHeight - 4)),
                 style.EventFontSize,
-                presenter.Foreground,
-                TextAlignment.Center,
-                centerVertically: true);
+                presenter.Foreground);
 
             eventY += style.EventBoxHeight + style.EventGap;
         }

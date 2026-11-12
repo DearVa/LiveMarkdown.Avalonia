@@ -1059,25 +1059,10 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         CornerRadius CornerRadius,
         Thickness Padding,
         Thickness Margin,
-        IBrush? BorderBrush,
-        double BorderThickness
+        IBrush? BorderBrush = null,
+        double BorderThickness = 0
     )
     {
-        /// <summary>
-        /// Initializes a code inline span without a border, preserving the pre-border API shape.
-        /// </summary>
-        public CodeInlineSpan(
-            int start,
-            int length,
-            CodeInline source,
-            IBrush? background,
-            CornerRadius cornerRadius,
-            Thickness padding,
-            Thickness margin)
-            : this(start, length, source, background, cornerRadius, padding, margin, null, 0)
-        {
-        }
-
         /// <summary>
         /// Gets the exclusive end index of this span in the text block.
         /// </summary>

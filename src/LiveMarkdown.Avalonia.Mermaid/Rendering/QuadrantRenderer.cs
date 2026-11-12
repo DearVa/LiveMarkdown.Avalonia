@@ -335,9 +335,15 @@ public class QuadrantRenderer : MermaidRenderer
 
         DrawAxisLabels(dc, presenter, style, chart, chartLeft, chartTop, hasPoints, metrics.AxisBottomPad);
 
+        var occupied = chart.Points.Select(point => new Rect(
+            chartLeft + point.X * style.ChartSize - style.PointRadius,
+            chartTop + (1 - point.Y) * style.ChartSize - style.PointRadius,
+            style.PointRadius * 2,
+            style.PointRadius * 2)).ToList();
+        var area = new Rect(chartLeft + 4, chartTop + 4, Math.Max(0, style.ChartSize - 8), Math.Max(0, style.ChartSize - 8));
         foreach (var point in chart.Points)
         {
-            DrawPoint(dc, presenter, style, point, chartLeft, chartTop);
+            DrawPoint(dc, presenter, style, point, chartLeft, chartTop, occupied, area);
         }
     }
 
@@ -431,7 +437,14 @@ public class QuadrantRenderer : MermaidRenderer
 
         if (hasPoints && axisBottomPad > 0)
         {
-            DrawOptionalText(dc, presenter, chart.XAxisLeft, chartLeft, bottom + style.AxisLabelPadding + style.AxisLabelBaselineOffset, TextAlignment.Left, style);
+            DrawOptionalText(
+                dc,
+                presenter,
+                chart.XAxisLeft,
+                chartLeft,
+                bottom + style.AxisLabelPadding + style.AxisLabelBaselineOffset,
+                TextAlignment.Left,
+                style);
             DrawOptionalText(
                 dc,
                 presenter,
@@ -508,7 +521,9 @@ public class QuadrantRenderer : MermaidRenderer
         Style style,
         QuadrantPoint point,
         double chartLeft,
-        double chartTop)
+        double chartTop,
+        List<Rect> occupied,
+        Rect area)
     {
         var x = chartLeft + point.X * style.ChartSize;
         var y = chartTop + (1 - point.Y) * style.ChartSize;
@@ -519,15 +534,17 @@ public class QuadrantRenderer : MermaidRenderer
             new Point(x, y),
             style.PointRadius,
             style.PointRadius);
-        MermaidTextRenderer.DrawText(
-            dc,
+        var text = MermaidTextRenderer.CreateFormattedText(
             presenter,
             point.Label,
-            x,
-            y + style.PointRadius + style.PointLabelOffset,
             style.PointLabelFontSize,
             presenter.Foreground,
             TextAlignment.Center);
+        text.MaxTextWidth = Math.Max(1, Math.Min(text.Width, area.Width));
+        var anchor = new Point(x, y + style.PointRadius + style.PointLabelOffset + text.Height / 2);
+        var bounds = MermaidLabelPlacement.Place(new Size(text.MaxTextWidth, text.Height), anchor, occupied, area);
+        occupied.Add(bounds);
+        MermaidTextRenderer.DrawTextInRect(dc, presenter, point.Label, bounds, style.PointLabelFontSize, presenter.Foreground);
     }
 
     private static IBrush GetFill(Style style, int index) =>

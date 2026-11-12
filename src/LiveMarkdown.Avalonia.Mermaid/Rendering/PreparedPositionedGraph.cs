@@ -20,6 +20,11 @@ internal sealed record PreparedPositionedGraph(
 )
 {
     /// <summary>
+    /// Gets the leftmost graph coordinate used to translate the native canvas origin.
+    /// </summary>
+    public double MinX { get; init; }
+
+    /// <summary>
     /// Builds a prepared graph from Mermaider's positioned graph.
     /// </summary>
     public static PreparedPositionedGraph Prepare(PositionedGraph graph)
@@ -28,7 +33,10 @@ internal sealed record PreparedPositionedGraph(
             graph.Groups.Select(PrepareGroup).ToList(),
             graph.Edges.Select(PrepareEdge).ToList(),
             graph.Nodes.Select(PrepareNode).ToList(),
-            graph.Notes.Select(PrepareNote).ToList());
+            graph.Notes.Select(PrepareNote).ToList())
+        {
+            MinX = graph.MinX
+        };
     }
 
     private static PreparedPositionedGroup PrepareGroup(PositionedGroup group)
