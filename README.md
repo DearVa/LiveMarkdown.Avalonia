@@ -421,14 +421,17 @@ var presenter = new MermaidPresenter
         NodeSpacing = 48,
         LayerSpacing = 72,
         RoundedEdges = false,
-        Strict = new StrictModeOptions
+        Strict = new StrictStylingOptions
         {
+            Mode = StrictStylingMode.Block,
             // Add pre-approved classes here when strict mode is enabled.
             AllowedClasses = []
         }
     }
 };
 ```
+
+`StrictStylingOptions` defaults to stripping source-authored styles. The example explicitly uses `Block` to reject them.
 
 The native renderer intentionally does not map `RenderOptions` color, font, or theme values back into Avalonia properties. Use Avalonia styles for visual appearance instead, for example `md|MermaidPresenter.MermaidBlock` for the presenter and renderer-part selectors such as `md|MermaidPresenter md|DefaultRenderer` for diagram-specific tokens.
 

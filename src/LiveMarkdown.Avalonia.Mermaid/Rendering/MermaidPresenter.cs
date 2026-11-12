@@ -944,7 +944,12 @@ public class MermaidPresenter : Control
             var options = RenderOptions;
             if (options?.Strict is { } strict)
             {
-                StrictModeValidator.Validate(input.Lines, strict);
+                var violations = new List<StrictStylingViolation>();
+                StrictStylingValidator.Validate(input.Lines, strict, violations);
+                if (violations.Count > 0)
+                {
+                    strict.OnStripped?.Invoke(violations);
+                }
             }
 
             var diagramType = DiagramDetector.Detect(input.CleanedText.AsSpan());

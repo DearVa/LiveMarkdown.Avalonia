@@ -327,7 +327,7 @@ public class MermaidPresenterTests
             RenderOptions = new MermaidRenderOptions
             {
                 LayoutProvider = provider,
-                Strict = new StrictModeOptions()
+                Strict = new StrictStylingOptions { Mode = StrictStylingMode.Block }
             }
         };
 
@@ -445,9 +445,9 @@ public class MermaidPresenterTests
         var prepared = PreparedPositionedGraph.Prepare(positioned);
 
         Assert.That(prepared.Edges, Has.One.Matches<PreparedPositionedEdge>(
-            edge => edge.LabelLayout is { Text: "yes" }));
+            edge => edge is not null && edge.LabelLayout is { Text: "yes" }));
         Assert.That(prepared.Nodes, Has.One.Matches<PreparedPositionedNode>(
-            node => node.Node.Id == "A" &&
+            node => node is not null && node.Node.Id == "A" &&
                     node.LabelLayout.Text == "Bold Italic" &&
                     node.LabelLayout.Spans.Count >= 2));
     }
@@ -881,7 +881,7 @@ public class MermaidPresenterTests
 
         public int ErCalls { get; private set; }
 
-        public PositionedGraph LayoutFlowchart(MermaidGraph graph, MermaidRenderOptions? options = null, StrictModeOptions? strict = null)
+        public PositionedGraph LayoutFlowchart(MermaidGraph graph, MermaidRenderOptions? options = null, StrictStylingOptions? strict = null)
         {
             FlowchartCalls++;
             return fallback.LayoutFlowchart(graph, options, strict);

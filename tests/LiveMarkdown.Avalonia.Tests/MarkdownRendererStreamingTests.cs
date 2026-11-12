@@ -83,9 +83,9 @@ public class MarkdownRendererStreamingTests
         {
             Assert.That(tableBorder.Child, Is.SameAs(contentBorder));
             Assert.That(initialCells, Has.Exactly(4).Items);
-            Assert.That(initialCells.Where(cell => Grid.GetRow(cell) == 0), Has.All.Matches<Border>(cell => cell.Classes.Contains("Header")));
+            Assert.That(initialCells.Where(cell => Grid.GetRow(cell) == 0), Has.All.Matches<Border>(cell => cell is not null && cell.Classes.Contains("Header")));
             Assert.That(initialCells.Count(cell => Grid.GetRow(cell) == 0 && cell.Classes.Contains("LastColumn")), Is.EqualTo(1));
-            Assert.That(initialCells.Where(cell => Grid.GetRow(cell) == 1), Has.All.Matches<Border>(cell => cell.Classes.Contains("LastRow")));
+            Assert.That(initialCells.Where(cell => Grid.GetRow(cell) == 1), Has.All.Matches<Border>(cell => cell is not null && cell.Classes.Contains("LastRow")));
         });
 
         var updatedDocument = Markdown.Parse(updatedMarkdown, MarkdownUpdateProducer.DefaultPipeline);
@@ -107,8 +107,8 @@ public class MarkdownRendererStreamingTests
         Assert.Multiple(() =>
         {
             Assert.That(updatedCells, Has.Exactly(6).Items);
-            Assert.That(updatedCells.Where(cell => Grid.GetRow(cell) < 2), Has.None.Matches<Border>(cell => cell.Classes.Contains("LastRow")));
-            Assert.That(updatedCells.Where(cell => Grid.GetRow(cell) == 2), Has.All.Matches<Border>(cell => cell.Classes.Contains("LastRow")));
+            Assert.That(updatedCells.Where(cell => Grid.GetRow(cell) < 2), Has.None.Matches<Border>(cell => cell is not null && cell.Classes.Contains("LastRow")));
+            Assert.That(updatedCells.Where(cell => Grid.GetRow(cell) == 2), Has.All.Matches<Border>(cell => cell is not null && cell.Classes.Contains("LastRow")));
         });
     }
 }

@@ -2,11 +2,13 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <AvaloniaVersion>12.0.0</AvaloniaVersion>
+    <!-- Keep published libraries on 12.0.0; demo diagnostics and ShadUI need a newer host. -->
+    <AvaloniaVersion Condition="$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('LiveMarkdown.Avalonia.Demo')) Or '$(MSBuildProjectName)' == 'ShadUI'">12.1.6</AvaloniaVersion>
     <SvgControlsVersion>12.0.0</SvgControlsVersion>
     <TextMateSharpVersion>2.0.0</TextMateSharpVersion>
   </PropertyGroup>
   <ItemGroup Label="Common">
-    <PackageVersion Include="IgnoresAccessChecksToGenerator" Version="0.8.0" />
+    <PackageVersion Include="IgnoresAccessChecksToGenerator" Version="1.0.0" />
     <PackageVersion Include="Svg.Controls.Avalonia" Version="$(SvgControlsVersion)" />
     <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="$(SvgControlsVersion)" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
@@ -21,30 +23,30 @@
     <PackageVersion Include="Avalonia.Browser" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Android" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.iOS" Version="$(AvaloniaVersion)" />
-    <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.2" />
+    <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
   </ItemGroup>
   <ItemGroup Label="Markdown">
     <PackageVersion Include="Markdig" Version="1.1.2" />
     <PackageVersion Include="TextMateSharp" Version="$(TextMateSharpVersion)" />
     <PackageVersion Include="TextMateSharp.Grammars" Version="$(TextMateSharpVersion)" />
     <PackageVersion Include="RaTeX.Avalonia" Version="1.0.0" />
-    <PackageVersion Include="Mermaider" Version="0.8.0" />
+    <PackageVersion Include="Mermaider" Version="0.16.0" />
   </ItemGroup>
   <ItemGroup Label="Testing">
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.1" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.3" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageVersion Include="NUnit" Version="4.3.2" />
-    <PackageVersion Include="NUnit.Analyzers" Version="4.5.0" />
-    <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.1" />
+    <PackageVersion Include="NUnit" Version="5.0.0" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.15.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.3.1" />
   </ItemGroup>
   <ItemGroup Label="ShadUI">
     <PackageVersion Include="Avalonia.Controls.ColorPicker" Version="$(AvaloniaVersion)" />
-    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageVersion Include="Avalonia.Skia" Version="$(AvaloniaVersion)" />
-    <PackageVersion Include="MinVer" Version="7.0.0" />
-    <PackageVersion Include="Lucide.Avalonia" Version="0.2.2" />
-    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
-    <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.0" />
+    <PackageVersion Include="MinVer" Version="8.0.0" />
+    <PackageVersion Include="Lucide.Avalonia" Version="0.2.30" />
+    <PackageVersion Include="SkiaSharp" Version="4.155.0" />
+    <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.1.5" />
   </ItemGroup>
 </Project>
