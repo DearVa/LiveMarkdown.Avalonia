@@ -18,6 +18,7 @@ public class SvgImageDecoder : IImageDecoder
 
     private SvgImageDecoder() { }
 
+    /// <inheritdoc />
     public async Task<IImage?> TryDecodeAsync(Image target, Stream stream, Uri uri, CancellationToken cancellationToken)
     {
         // Fast-fail check: If it's pure binary (contains null bytes in the header), it's likely a Bitmap, skip SVG parsing.
