@@ -40,7 +40,6 @@ jobs:
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          RELEASE_BODY: ${{ github.event.release.body }}
         run: |
           $version = $env:RELEASE_TAG -replace '^v', ''
           if ([string]::IsNullOrWhiteSpace($version)) {
@@ -58,18 +57,8 @@ jobs:
           }
 
           $assemblyVersion = $versionParts -join '.'
-          $releaseNotes = $env:RELEASE_BODY
-          if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
-            $releaseNotes = "See release $($env:RELEASE_TAG)."
-          }
-
           "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ASSEMBLY_VERSION=$assemblyVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-          $delimiter = [guid]::NewGuid().ToString()
-          "PACKAGE_RELEASE_NOTES<<$delimiter" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $releaseNotes | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $delimiter | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Restore dependencies
         shell: pwsh
@@ -116,20 +105,18 @@ jobs:
             "-p:IncludeSourceRevisionInInformationalVersion=false"
           )
 
-          $releaseNotesProps = Join-Path $env:RUNNER_TEMP "LiveMarkdown.PackageReleaseNotes.props"
-          $escapedReleaseNotes = [System.Security.SecurityElement]::Escape($env:PACKAGE_RELEASE_NOTES)
-          $releaseNotesXml = @(
-            "<Project>"
-            "  <PropertyGroup>"
-            "    <PackageReleaseNotes>$escapedReleaseNotes</PackageReleaseNotes>"
-            "  </PropertyGroup>"
-            "</Project>"
-          ) -join [Environment]::NewLine
-          [System.IO.File]::WriteAllText($releaseNotesProps, $releaseNotesXml, [System.Text.UTF8Encoding]::new($false))
+          $release = (Get-Content -LiteralPath $env:GITHUB_EVENT_PATH -Raw -Encoding utf8 | ConvertFrom-Json).release
+          $releaseNotes = $release.body
+          if ([string]::IsNullOrWhiteSpace($releaseNotes) -or $releaseNotes.Length -gt 35000) {
+            $releaseNotes = $release.html_url
+          }
+
+          # The outer pack build reads this MSBuild property from the environment.
+          # Preserve literal percent escapes (such as %20) and item expressions (such as @(Item)).
+          $env:PackageReleaseNotes = $releaseNotes.Replace('%', '%25').Replace('@', '%40')
 
           $packProperties = $versionProperties + @(
             "-p:Copyright=$copyright"
-            "-p:CustomBeforeMicrosoftCommonTargets=$releaseNotesProps"
             "-p:IncludeSymbols=true"
             "-p:SymbolPackageFormat=snupkg"
           )
