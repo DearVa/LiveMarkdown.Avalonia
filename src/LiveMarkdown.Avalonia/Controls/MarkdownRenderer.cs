@@ -140,6 +140,17 @@ public partial class MarkdownRenderer : Control
     }
 
     /// <summary>
+    /// Raised when a link under the pointer changes in a descendant text block.
+    /// The source is a <see cref="MarkdownTextBlock"/>; read its PointerOverLink and query
+    /// inline geometry there for host-owned previews.
+    /// </summary>
+    public event EventHandler<RoutedEventArgs>? LinkPointerOverChanged
+    {
+        add => AddHandler(MarkdownTextBlock.LinkPointerOverChangedEvent, value);
+        remove => RemoveHandler(MarkdownTextBlock.LinkPointerOverChangedEvent, value);
+    }
+
+    /// <summary>
     /// Defines the <see cref="LinkCommand"/> property.
     /// </summary>
     public static readonly StyledProperty<ICommand?> LinkCommandProperty =
@@ -210,7 +221,28 @@ public partial class MarkdownRenderer : Control
     private void ApplyDocumentUpdate(MarkdownDocumentUpdate? value)
     {
         Dispatcher.VerifyAccess();
+        if (_isNodeHookPassActive && HasActiveNodeHooks)
+        {
+            throw new InvalidOperationException("A node hook cannot synchronously replace its renderer's document.");
+        }
 
+        var hookPass = BeginNodeHookPass();
+        Exception? error = null;
+        try
+        {
+            ApplyDocumentUpdateCore(value);
+        }
+        catch (Exception exception)
+        {
+            error = exception;
+        }
+
+        hookPass.Complete(ref error);
+        NodeHookErrors.Throw(error);
+    }
+
+    private void ApplyDocumentUpdateCore(MarkdownDocumentUpdate? value)
+    {
         var previous = documentUpdate;
         if (!SetAndRaise(DocumentUpdateProperty, ref documentUpdate, value)) return;
 
@@ -218,9 +250,9 @@ public partial class MarkdownRenderer : Control
         // intermediate empty tree before its first measure.
         if (value != null)
         {
-            var change = value is MarkdownDocumentUpdate.Incremental incremental && previous is not null && incremental.Follows(previous)
-                ? value.Change
-                : new ObservableStringBuilderChangedEventArgs(
+            var change = value is MarkdownDocumentUpdate.Incremental incremental && previous is not null && incremental.Follows(previous) ?
+                value.Change :
+                new ObservableStringBuilderChangedEventArgs(
                     0,
                     Math.Max(previous?.Document.GetLength() ?? 0, value.Document.GetLength()),
                     value.Document.GetLength(),

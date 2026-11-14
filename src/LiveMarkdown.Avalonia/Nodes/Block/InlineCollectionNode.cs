@@ -29,6 +29,9 @@ public class InlineCollectionNode<TBlock> : BlockNode<TBlock> where TBlock : Lea
         };
     }
 
+    /// <inheritdoc />
+    protected override void ReleaseChildren() => inlinesNode.Release();
+
     /// <summary>
     /// Synchronizes the inline content of a leaf block.
     /// </summary>

@@ -33,6 +33,9 @@ public class InlinesNode<TInline> : InlineNode<TInline> where TInline : Inline
         proxy = new MarkdownRenderer.InlinesProxy(inlines);
     }
 
+    /// <inheritdoc />
+    protected override void ReleaseChildren() => proxy.ReleaseNodes();
+
     /// <summary>
     /// Synchronizes child inline nodes with the Markdig inline container.
     /// </summary>

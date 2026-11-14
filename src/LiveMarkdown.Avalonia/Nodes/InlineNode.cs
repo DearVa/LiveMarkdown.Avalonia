@@ -49,8 +49,26 @@ public abstract class InlineNode : MarkdownNode
                 .FirstOrDefault()
             ?? new NotImplementedInlineNode(inline.GetType());
 
-        node.Update(documentNode, inline, change, cancellationToken);
-        return node;
+        try
+        {
+            node.Update(documentNode, inline, change, cancellationToken);
+            return node;
+        }
+        catch (Exception exception)
+        {
+            var error = exception;
+            try
+            {
+                node.Release();
+            }
+            catch (Exception cleanupError)
+            {
+                NodeHookErrors.Add(ref error, cleanupError);
+            }
+
+            NodeHookErrors.Throw(error);
+            throw;
+        }
     }
 }
 

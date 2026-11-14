@@ -1,0 +1,101 @@
+﻿<UserControl
+  x:Class="LiveMarkdown.Avalonia.Demo.Views.LinkDemoView" xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:md="clr-namespace:LiveMarkdown.Avalonia;assembly=LiveMarkdown.Avalonia">
+  <ScrollViewer>
+    <StackPanel
+      MaxWidth="1100" Margin="24"
+      HorizontalAlignment="Stretch" Spacing="20">
+      <StackPanel Spacing="8">
+        <TextBlock
+          FontSize="28" FontWeight="SemiBold"
+          Text="Links, without surprises."/>
+        <TextBlock
+          Opacity="0.75" Text="Hover a web link for a preview, or click a local link to reveal its location. Right-click for more actions."
+          TextWrapping="Wrap"/>
+      </StackPanel>
+      <Border
+        Padding="0,0,0,20"
+        BorderBrush="{DynamicResource BorderColor}"
+        BorderThickness="0,0,0,1">
+        <StackPanel Spacing="10">
+          <TextBlock
+            FontSize="11" FontWeight="Bold"
+            Opacity="0.6" Text="TRY AN ADDRESS"/>
+          <TextBox
+            x:Name="AddressInput" PlaceholderText="Absolute local path, file: URI, or https:// URL"/>
+          <WrapPanel Orientation="Horizontal">
+            <Button
+              Margin="0,0,8,8" Click="HandleTryAddress"
+              Content="Reveal / open link"/>
+            <Button
+              Classes="Outline" Margin="0,0,8,8"
+              Click="HandleCopyAddress" Content="Copy path"/>
+            <Button
+              Classes="Outline" Margin="0,0,8,8"
+              Click="HandleRevealParent" Content="Reveal existing parent"/>
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+      <Grid
+        x:Name="ExamplesGrid" ColumnDefinitions="3*,24,2*"
+        RowDefinitions="Auto,Auto">
+        <StackPanel
+          x:Name="ExamplesPanel" Grid.Column="0"
+          Spacing="12">
+          <TextBlock
+            FontSize="11" FontWeight="Bold"
+            Opacity="0.6" Text="REAL FILES · REAL ACTIONS"/>
+          <md:MarkdownRenderer x:Name="LinksRenderer"/>
+        </StackPanel>
+        <StackPanel
+          x:Name="ReferencePanel" Grid.Row="0"
+          Grid.Column="2" Spacing="12">
+          <TextBlock FontSize="11" FontWeight="Bold" Opacity="0.6" Text="FILE REFERENCE"/>
+          <Button
+            x:Name="FileReference" Classes="Outline"
+            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+            Click="HandleFileReference">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <LucideIcon Kind="File" Size="14"/>
+                <TextBlock FontWeight="SemiBold" Text="File reference"/>
+              </StackPanel>
+              <TextBlock
+                FontSize="12" Opacity="0.7"
+                Text="中文 notes with spaces.txt"/>
+            </StackPanel>
+          </Button>
+          <TextBlock
+            Opacity="0.7" Text="This file-reference button uses the same target parser and action service as the Markdown links."
+            TextWrapping="Wrap"/>
+          <TextBlock
+            Opacity="0.7" Text="Local hover shows the path only. It never probes a network share or opens a file."
+            TextWrapping="Wrap"/>
+          <TextBlock
+            x:Name="PlatformNote" Opacity="0.7"
+            TextWrapping="Wrap"/>
+        </StackPanel>
+      </Grid>
+      <Border
+        Padding="16"
+        Background="{DynamicResource PopupBackgroundColor}"
+        BorderBrush="{DynamicResource BorderColor}"
+        BorderThickness="1" CornerRadius="8">
+        <StackPanel Spacing="6">
+          <TextBlock
+            x:Name="OperationStatus" FontWeight="SemiBold"
+            Text="Ready. Try a sample link." TextWrapping="Wrap"/>
+          <SelectableTextBlock
+            x:Name="OperationPath" FontSize="12"
+            Opacity="0.7" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+      <Expander
+        HorizontalAlignment="Stretch" Header="Markdown source">
+        <SelectableTextBlock
+          x:Name="SourceText" Margin="0,12"
+          FontFamily="Consolas, monospace" TextWrapping="Wrap"/>
+      </Expander>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

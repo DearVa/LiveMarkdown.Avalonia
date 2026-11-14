@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://deepwiki.com/DearVa/LiveMarkdown.Avalonia"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <a href="https://www.nuget.org/packages/LiveMarkdown.Avalonia/"><img src="https://img.shields.io/nuget/v/LiveMarkdown.Avalonia.svg?style=flat-square" alt="NuGet"></a>
-  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-8.0%20%7C%2010.0-512BD4.svg?style=flat-square" alt=".NET 8 and .NET 10"></a>
+  <a href="https://dotnet.microsoft.com/"><img src="https://img.shields.io/badge/.NET-8.0%20%7C%2010.0%20%7C%2011.0-512BD4.svg?style=flat-square" alt=".NET 8, .NET 10, and .NET 11"></a>
   <a href="https://avaloniaui.net/"><img src="https://img.shields.io/badge/Avalonia-12-blue.svg?style=flat-square" alt="Avalonia 12"></a>
   <a href="https://github.com/DearVa/LiveMarkdown.Avalonia/issues"><img src="https://img.shields.io/github/issues/DearVa/LiveMarkdown.Avalonia.svg?style=flat-square" alt="GitHub issues"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"></a>
@@ -154,7 +154,347 @@ update it on the Avalonia UI thread. See the FAQ for completed-document caching 
 
 If you want to load local images with relative paths, you can set the `MarkdownRenderer.ImageBasePath` property.
 
-### 4. Search text and customize highlights
+### 4. (Optional) Enable LaTeX rendering
+
+LaTeX is supported via the `LiveMarkdown.Avalonia.Math` package. You can install it via NuGet:
+
+```bash
+dotnet add package LiveMarkdown.Avalonia.Math
+```
+
+Then register both the `MathInlineNode` and `MathBlockNode` before using LaTeX in your Markdown content (e.g. App.axaml.cs):
+
+```csharp
+using LiveMarkdown.Avalonia;
+
+MarkdownNode.Register<MathInlineNode>();
+MarkdownNode.Register<MathBlockNode>(); // This is also required for block-level LaTeX support, e.g. $$...$$
+
+// Also, you can use the following code to register/unregister multiple nodes at once if needed:
+MarkdownNode.Edit(builder => builder
+    .Register<MathInlineNode>()
+    .Register<MathBlockNode>()
+    // .Unregister<SomeBuiltInNode>() // You can even unregister some built-in nodes if you want to disable certain Markdown features
+);
+```
+
+### 5. (Optional) Enable SVG image rendering
+
+SVG rendering is supported via the `LiveMarkdown.Avalonia.Svg` or `LiveMarkdown.Avalonia.Svg.Skia` package. You can install one of them via NuGet:
+
+```bash
+dotnet add package LiveMarkdown.Avalonia.Svg
+```
+
+or
+
+```bash
+dotnet add package LiveMarkdown.Avalonia.Svg.Skia
+```
+
+> [!NOTE]
+> The `LiveMarkdown.Avalonia.Svg` and `LiveMarkdown.Avalonia.Svg.Skia` packages provide two different implementations for SVG rendering.
+> The former uses `Svg.Controls.Avalonia` which is more Avalonia-native, while the latter uses `Svg.Skia` which is more powerful and has better compatibility.
+
+Then register the `SvgImageDecoder` into the `AsyncImageLoader` before using SVG images in your Markdown content (e.g. App.axaml.cs):
+
+```csharp
+using LiveMarkdown.Avalonia;
+
+AsyncImageLoader.DefaultDecoders =
+[
+    SvgImageDecoder.Shared,
+    DefaultBitmapDecoder.Shared
+];
+```
+
+You can also set the `AsyncImageLoader.Decoders` property on a per-renderer basis if you want different renderers to use different decoders.
+
+### 6. (Optional) Enable Mermaid diagram rendering
+
+Mermaid diagram rendering is supported via the `LiveMarkdown.Avalonia.Mermaid` package. You can install it via NuGet:
+
+```bash
+dotnet add package LiveMarkdown.Avalonia.Mermaid
+```
+
+Then register the `MermaidBlockNode` before using Mermaid diagrams in your Markdown content (e.g. App.axaml.cs):
+
+```csharp
+using LiveMarkdown.Avalonia;
+
+MarkdownRenderer.ConfigurePipeline += x => x.UseMermaid();
+MarkdownNode.Register<MermaidBlockNode>();
+```
+
+You can also include the default Mermaid styles and override them from your application styles:
+
+```xml
+<StyleInclude Source="avares://LiveMarkdown.Avalonia.Mermaid/Styles.axaml"/>
+```
+
+#### Mermaider options
+
+`MermaidPresenter.RenderOptions` lets the native renderer use the same Mermaider options for the parts of rendering that are still owned by Mermaider: parsing constraints, layout spacing, custom layout providers, strict mode, and rounded-edge routing.
+
+```csharp
+using LiveMarkdown.Avalonia;
+using Mermaider.Models;
+
+var presenter = new MermaidPresenter
+{
+    RenderOptions = new RenderOptions
+    {
+        Padding = 56,
+        NodeSpacing = 48,
+        LayerSpacing = 72,
+        RoundedEdges = false,
+        Strict = new StrictStylingOptions
+        {
+            Mode = StrictStylingMode.Block,
+            // Add pre-approved classes here when strict mode is enabled.
+            AllowedClasses = []
+        }
+    }
+};
+```
+
+`StrictStylingOptions` defaults to stripping source-authored styles. The example explicitly uses `Block` to reject them.
+
+The native renderer intentionally does not map `RenderOptions` color, font, or theme values back into Avalonia properties. Use Avalonia styles for visual appearance instead, for example `md|MermaidPresenter.MermaidBlock` for the presenter and renderer-part selectors such as `md|MermaidPresenter md|DefaultRenderer` for diagram-specific tokens.
+
+For Markdown Mermaid blocks, complex `RenderOptions` objects are usually easiest to configure in C# in one central place. You can also assign a shared options object from a style:
+
+```xml
+<Style Selector="md|MermaidPresenter.MermaidBlock">
+  <Setter Property="RenderOptions" Value="{StaticResource MermaidRenderOptions}"/>
+</Style>
+```
+
+Current native synchronization scope:
+
+- Flowchart and state diagrams pass `Padding`, `NodeSpacing`, `LayerSpacing`, `LayoutProvider`, `Strict`, and `RoundedEdges` to Mermaider layout.
+- Class and ER diagrams use `RenderOptions.LayoutProvider` when supplied.
+- Sequence diagrams use Mermaider's sequence layout, which currently does not accept `RenderOptions`.
+- Colors, fonts, and Mermaid theme variables remain Avalonia style concerns in native rendering.
+
+### 7. (Optional) Configure Image cache
+
+`AsyncImageLoader` uses the in-memory `RamBasedAsyncImageLoaderCache.Shared` by default.
+If you want persistent caching for remote images, enable the file-backed cache explicitly:
+
+```xml
+<Image md:AsyncImageLoader.Source="https://example.com/image.png" md:AsyncImageLoader.Cache="File"/>
+```
+
+Or set it globally:
+
+```csharp
+AsyncImageLoader.DefaultCache = FileBasedAsyncImageLoaderCache.Shared;
+```
+
+`FileBasedAsyncImageLoaderCache` defaults to a cache directory under `%LocalAppData%/LiveMarkdown.ImageCache`,
+but you can configure it to any directory you want.
+
+```csharp
+using LiveMarkdown.Avalonia;
+
+FileBasedAsyncImageLoaderCache.CacheDirectory = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "YourApp",
+    "ImageCache");
+FileBasedAsyncImageLoaderCache.MaxCacheSizeBytes = 256L * 1024L * 1024L;
+FileBasedAsyncImageLoaderCache.MaxEntrySizeBytes = 32L * 1024L * 1024L;
+FileBasedAsyncImageLoaderCache.DefaultFreshnessLifetime = TimeSpan.FromDays(7);
+HttpAsyncImageLoaderHandler.Shared.EnableConditionalRequests = true;
+```
+
+The file cache stores original image bytes under SHA-256 keys and uses common HTTP freshness/validation headers
+such as `Cache-Control`, `Expires`, `ETag`, and `Last-Modified` when available.
+
+For advanced scenarios, you can even implement your own `AsyncImageLoaderCache`.
+
+## Links and node hooks
+
+### Style link states
+
+Links remain `Span` elements: their text wraps, supports partial selection, and can contain bold, italic, or code
+inlines. `Link.IsPointerOver` and `Link.IsPressed` are read-only Avalonia DirectProperties reflected by the
+`:pointerover` and `:pressed` pseudo-classes. Use regular styles rather than replacing a link with a control:
+
+```xml
+<md:MarkdownRenderer>
+  <md:MarkdownRenderer.Styles>
+    <Style Selector="md|Link:pointerover">
+      <Setter Property="TextDecorations">
+        <TextDecorationCollection>
+          <TextDecoration Location="Underline"
+                          StrokeThickness="1" StrokeThicknessUnit="Pixel"
+                          StrokeDashArray="2,2"/>
+        </TextDecorationCollection>
+      </Setter>
+    </Style>
+  </md:MarkdownRenderer.Styles>
+</md:MarkdownRenderer>
+```
+
+Existing `LinkClick`, `LinkCommand`, `LinkContextMenu`, and link open/copy commands remain available with their
+original contracts. Renderer-generated `LinkClickedEventArgs` now also include `Link`; the existing constructor
+and `HRef` remain unchanged, and arguments constructed with only a URI have a null `Link`. `IsClicked` retains its
+existing meaning rather than becoming browser-history tracking. Link identity no longer occupies `FontFeatures`,
+so nested formatting and application-specified font features can be used independently of hit testing.
+
+### Anchor a tooltip or preview
+
+`LinkPointerOverChanged` bubbles from a `MarkdownTextBlock` to its `MarkdownRenderer` and other visual ancestors.
+It uses Avalonia's `RoutedEventArgs`; `Source` is the text block and `PointerOverLink` is its current target. It fires
+on target transitions, not on every pointer movement. A target change, removal, hiding, or selection drag ends the
+hover. To position a host-owned tooltip or preview, query the link's rendered fragments on the UI thread:
+
+```csharp
+using Avalonia.Interactivity;
+
+MarkdownRenderer.LinkPointerOverChanged += HandleLinkPointerOverChanged;
+
+void HandleLinkPointerOverChanged(object? sender, RoutedEventArgs e)
+{
+    if (e.Source is not MarkdownTextBlock block) return;
+    if (block.PointerOverLink is not { } link)
+    {
+        // Close or cancel any preview associated with this text block.
+        return;
+    }
+
+    if (block.GetInlineGeometry(link) is not { } geometry) return;
+    var fragments = geometry.GetRects(MarkdownRenderer);
+    // Anchor the preview to the appropriate fragment, not the union of all wrapped lines.
+    foreach (var fragment in fragments)
+    {
+        Console.WriteLine($"{link.HRef}: {fragment}");
+    }
+}
+```
+
+`PointerOverLinkProperty` also supports bindings, `GetObservable`, and native `PropertyChanged` notifications when
+old/new values are needed. Dispose subscriptions when the host detaches. The library provides target state and
+geometry; preview delays, content, requests, and popup lifetime belong to the application.
+
+### Customize nodes with lifecycle hooks
+
+Register typed delegates on one renderer, or use `MarkdownNode.GlobalHooks` for application-wide defaults. The type
+parameter matches the node and derived node types; it does not refer to the Markdig syntax type or Avalonia element.
+Register before assigning content to affect the first render:
+
+```csharp
+var renderer = new MarkdownRenderer();
+var registration = renderer.NodeHooks.Register<LinkInlineNode>(
+    afterUpdate: context =>
+    {
+        if (context.Result == NodeUpdateResult.Applied && context.Node.Inline is Link link)
+        {
+            link.Classes.Set("local-file", link.HRef is { IsAbsoluteUri: true, IsFile: true });
+        }
+    },
+    cleanup: context => context.Node.Inline.Classes.Remove("local-file"));
+
+// The same API supports global registration, including custom node subclasses.
+var global = MarkdownNode.GlobalHooks.Register<CodeBlockNode>(
+    initialize: context => context.Node.Control.Classes.Add("application-code"),
+    cleanup: context => context.Node.Control.Classes.Remove("application-code"));
+
+// Dispose both handles on the UI thread when their owning application/view scope ends.
+registration.Dispose();
+global.Dispose();
+```
+
+For icons, embed only the icon in an `InlineUIContainer`, leaving the link label as normal inlines. See [Keep an inline icon across updates](#keep-an-inline-icon-across-updates) for the complete example.
+
+### Inline geometry reference
+
+`MarkdownTextBlock.GetInlineGeometry(inline)` works for links and other inlines. The snapshot contains the owning
+block, inline, start, length, and read-only `Rects` in block coordinates. `GetRects(visual)` transforms them using the
+current visual transform and returns an empty list for unrelated roots. Obtain a fresh snapshot after reflow or
+content changes. Queries return null before layout or for an inline owned by another block; they do not trigger
+measurement. Ranges use the existing block-local UTF-16 `LayoutText` coordinates, not Markdown source offsets.
+Embedded controls retain their existing one-position representation. `GetInlineAt(point)` finds the deepest inline;
+`GetLinkAt(point)` finds the innermost link. Both take block-local points and reject empty space outside text-range
+boxes. For code-chip backgrounds including padding, keep using `GetCodeInlineAt` and `GetCodeInlineRects`.
+
+### Hook lifecycle and ordering
+
+Each registration groups any combination of four callbacks:
+
+- `initialize`: once before the node's first affected update for this registration. The element exists, but content and
+  layout may not exist yet. This is a hook lifetime, not a visual-tree event.
+- `beforeUpdate`: before synchronization, including the initial update. Temporarily remove your own extra children here
+  so they do not interfere with the renderer's indexed child reconciliation.
+- `afterUpdate`: after the attempt, with `Applied`, `Rejected`, `Failed`, or `Canceled` and the original exception.
+  Completion runs in reverse order, including the paired callback whose `beforeUpdate` threw, but not pairs whose
+  `beforeUpdate` never entered. Completion-only observers run after an attempt once initialization succeeded.
+- `cleanup`: once when the node is released or the registration is canceled. Remove your own additions, event
+  subscriptions, requests, and other resources here. Arbitrary property changes are not automatically rolled back.
+
+For each node, global callbacks enter before local ones, in registration order; completion and node-release cleanup
+unwind in reverse. Child updates nest inside their parent's update. Unaffected nodes do not run update callbacks.
+Registering a hook does not trigger a render: existing nodes initialize on their next affected update. Visual detach,
+hiding, and reattachment do not release nodes. Removal, replacement, an empty document, or clearing `DocumentUpdate`
+does. Custom composite node authors must override `ReleaseChildren()` to release owned child nodes outside the
+standard proxies; standalone node owners call `Release()` when done.
+
+Callbacks, registration, and disposal are synchronous and UI-thread-only. Each document synchronization captures one
+global/local registration snapshot: changes made inside callbacks affect later synchronizations, not later siblings
+in the same pass. Disposing during a pass lets its current callbacks finish, then cleans live participants before the
+outermost active pass returns. Outside a pass, disposal cleans participating nodes immediately. Repeated disposal is
+safe. Exceptions propagate; remaining completion/cleanup callbacks still run and multiple failures are aggregated.
+Do not synchronously replace the same renderer's document from a hook.
+
+The small readonly contexts expose the typed `Node`, owning `Renderer`, and `Element`. Update contexts additionally
+expose the current `MarkdownObject`, `Change`, and `CancellationToken`; these inputs are transient and should not be
+retained or passed to background work. Create a cancellation scope in `initialize`, update asynchronous content through
+the UI dispatcher, and cancel it in `cleanup` when fetching application-owned metadata such as favicons.
+
+### Keep an inline icon across updates
+
+
+This example uses a `Path`; replace it with a file icon or favicon control in the application. Only the icon is
+embedded, so label wrapping, formatting, selection, and link hit testing remain in the normal text flow:
+
+```csharp
+using Avalonia.Controls;
+using Avalonia.Controls.Documents;
+using Avalonia.Media;
+
+var icons = new Dictionary<LinkInlineNode, InlineUIContainer>();
+var iconHooks = renderer.NodeHooks.Register<LinkInlineNode>(
+    initialize: context => icons.Add(context.Node, new InlineUIContainer(new Avalonia.Controls.Shapes.Path
+    {
+        Width = 12, Height = 12, IsHitTestVisible = false, Fill = Brushes.DodgerBlue, Stretch = Stretch.Uniform,
+        Data = Geometry.Parse("M 1,5 L 8,5 L 8,2 L 12,6 L 8,10 L 8,7 L 1,7 Z")
+    })),
+    beforeUpdate: context => context.Node.Inlines.Remove(icons[context.Node]),
+    afterUpdate: context =>
+    {
+        if (context.Result == NodeUpdateResult.Applied &&
+            context.Update.MarkdownObject is Markdig.Syntax.Inlines.LinkInline { IsImage: false })
+        {
+            context.Node.Inlines.Insert(0, icons[context.Node]);
+        }
+    },
+    cleanup: context =>
+    {
+        context.Node.Inlines.Remove(icons[context.Node]);
+        icons.Remove(context.Node);
+    });
+
+// Also removes existing icons; no additional render is needed.
+iconHooks.Dispose();
+```
+
+An embedded icon occupies one U+FFFC position in `LayoutText`; non-text icons do not add copied text. Rendered search
+and geometry use those real positions. If the application also uses an off-screen `MarkdownTextProjector`, its
+projection must account for the same added object positions before using offsets to navigate the decorated render.
+
+## Search text and customize highlights
 
 `MarkdownRenderer.ApplyTextSearch` searches the text of the Markdown text blocks owned by the renderer and paints the
 matching ranges without changing text shaping or line breaking. The convenience overload supports literal matching,
@@ -224,7 +564,7 @@ block.Highlights.Set(
 Use `TextHighlightStyles.Set` to define the visual style for each name. A style can specify `Background`, `Foreground`,
 `CornerRadius`, and `Padding`; the registry priority determines which overlapping highlight wins.
 
-#### Search Markdown without creating a visual tree
+### Search Markdown without creating a visual tree
 
 `MarkdownTextProjector` parses a committed builder snapshot with the same Markdig pipeline used by
 `MarkdownRenderer`. It produces one searchable buffer for each visual Markdown text block, without constructing
@@ -306,7 +646,7 @@ The off-screen projector covers the built-in Markdown nodes. Registered custom i
 objects, and custom nodes with specialized visual rendering may only be represented accurately by
 `RenderedTextProjection` after the renderer is realized.
 
-#### Text coordinates and precise navigation
+### Text coordinates and precise navigation
 
 Search and highlight ranges always use UTF-16 offsets local to one `MarkdownTextBlock`:
 
@@ -326,165 +666,22 @@ var rectangles = match.Block.GetTextRangeBoundsInControl(
 
 One range can produce multiple rectangles when it crosses a wrapped line.
 
-### 5. (Optional) Enable LaTeX rendering
+## Interactive demo
 
-LaTeX is supported via the `LiveMarkdown.Avalonia.Math` package. You can install it via NuGet:
+With the .NET 11 SDK and the repository's submodules initialized, run the desktop host from the repository root:
 
-```bash
-dotnet add package LiveMarkdown.Avalonia.Math
+```shell
+dotnet run --project src/LiveMarkdown.Avalonia.Demo/LiveMarkdown.Avalonia.Demo.Desktop
 ```
 
-Then register both the `MathInlineNode` and `MathBlockNode` before using LaTeX in your Markdown content (e.g. App.axaml.cs):
+- **Link**: real local-file samples, delayed path tooltips, reveal-on-click, and a shared right-click action menu.
+  Executable targets require confirmation; missing files retain copy-path and existing-parent recovery.
+- **Hooks**: switch renderer-local and global hooks, stream a document, and watch initialization, update pairing,
+  and cleanup. The local hook adds a trailing arrow without changing the selectable link label.
 
-```csharp
-using LiveMarkdown.Avalonia;
-
-MarkdownNode.Register<MathInlineNode>();
-MarkdownNode.Register<MathBlockNode>(); // This is also required for block-level LaTeX support, e.g. $$...$$
-
-// Also, you can use the following code to register/unregister multiple nodes at once if needed:
-MarkdownNode.Edit(builder => builder
-    .Register<MathInlineNode>()
-    .Register<MathBlockNode>()
-    // .Unregister<SomeBuiltInNode>() // You can even unregister some built-in nodes if you want to disable certain Markdown features
-);
-```
-
-### 6. (Optional) Enable SVG image rendering
-
-SVG rendering is supported via the `LiveMarkdown.Avalonia.Svg` or `LiveMarkdown.Avalonia.Svg.Skia` package. You can install one of them via NuGet:
-
-```bash
-dotnet add package LiveMarkdown.Avalonia.Svg
-```
-
-or
-
-```bash
-dotnet add package LiveMarkdown.Avalonia.Svg.Skia
-```
-
-> [!NOTE] 
-> The `LiveMarkdown.Avalonia.Svg` and `LiveMarkdown.Avalonia.Svg.Skia` packages provide two different implementations for SVG rendering.
-> The former uses `Svg.Controls.Avalonia` which is more Avalonia-native, while the latter uses `Svg.Skia` which is more powerful and has better compatibility.
-
-Then register the `SvgImageDecoder` into the `AsyncImageLoader` before using SVG images in your Markdown content (e.g. App.axaml.cs):
-
-```csharp
-using LiveMarkdown.Avalonia;
-
-AsyncImageLoader.DefaultDecoders =
-[
-    SvgImageDecoder.Shared,
-    DefaultBitmapDecoder.Shared
-];
-```
-
-You can also set the `AsyncImageLoader.Decoders` property on a per-renderer basis if you want different renderers to use different decoders.
-
-### 7. (Optional) Enable Mermaid diagram rendering
-
-Mermaid diagram rendering is supported via the `LiveMarkdown.Avalonia.Mermaid` package. You can install it via NuGet:
-
-```bash
-dotnet add package LiveMarkdown.Avalonia.Mermaid
-```
-
-Then register the `MermaidBlockNode` before using Mermaid diagrams in your Markdown content (e.g. App.axaml.cs):
-
-```csharp
-using LiveMarkdown.Avalonia;
-
-MarkdownRenderer.ConfigurePipeline += x => x.UseMermaid();
-MarkdownNode.Register<MermaidBlockNode>();
-```
-
-You can also include the default Mermaid styles and override them from your application styles:
-
-```xml
-<StyleInclude Source="avares://LiveMarkdown.Avalonia.Mermaid/Styles.axaml"/>
-```
-
-#### Mermaider options
-
-`MermaidPresenter.RenderOptions` lets the native renderer use the same Mermaider options for the parts of rendering that are still owned by Mermaider: parsing constraints, layout spacing, custom layout providers, strict mode, and rounded-edge routing.
-
-```csharp
-using LiveMarkdown.Avalonia;
-using Mermaider.Models;
-
-var presenter = new MermaidPresenter
-{
-    RenderOptions = new RenderOptions
-    {
-        Padding = 56,
-        NodeSpacing = 48,
-        LayerSpacing = 72,
-        RoundedEdges = false,
-        Strict = new StrictStylingOptions
-        {
-            Mode = StrictStylingMode.Block,
-            // Add pre-approved classes here when strict mode is enabled.
-            AllowedClasses = []
-        }
-    }
-};
-```
-
-`StrictStylingOptions` defaults to stripping source-authored styles. The example explicitly uses `Block` to reject them.
-
-The native renderer intentionally does not map `RenderOptions` color, font, or theme values back into Avalonia properties. Use Avalonia styles for visual appearance instead, for example `md|MermaidPresenter.MermaidBlock` for the presenter and renderer-part selectors such as `md|MermaidPresenter md|DefaultRenderer` for diagram-specific tokens.
-
-For Markdown Mermaid blocks, complex `RenderOptions` objects are usually easiest to configure in C# in one central place. You can also assign a shared options object from a style:
-
-```xml
-<Style Selector="md|MermaidPresenter.MermaidBlock">
-  <Setter Property="RenderOptions" Value="{StaticResource MermaidRenderOptions}"/>
-</Style>
-```
-
-Current native synchronization scope:
-
-- Flowchart and state diagrams pass `Padding`, `NodeSpacing`, `LayerSpacing`, `LayoutProvider`, `Strict`, and `RoundedEdges` to Mermaider layout.
-- Class and ER diagrams use `RenderOptions.LayoutProvider` when supplied.
-- Sequence diagrams use Mermaider's sequence layout, which currently does not accept `RenderOptions`.
-- Colors, fonts, and Mermaid theme variables remain Avalonia style concerns in native rendering.
-
-### 8. (Optional) Configure Image cache
-
-`AsyncImageLoader` uses the in-memory `RamBasedAsyncImageLoaderCache.Shared` by default.
-If you want persistent caching for remote images, enable the file-backed cache explicitly:
-
-```xml
-<Image md:AsyncImageLoader.Source="https://example.com/image.png" md:AsyncImageLoader.Cache="File"/>
-```
-
-Or set it globally:
-
-```csharp
-AsyncImageLoader.DefaultCache = FileBasedAsyncImageLoaderCache.Shared;
-```
-
-`FileBasedAsyncImageLoaderCache` defaults to a cache directory under `%LocalAppData%/LiveMarkdown.ImageCache`,
-but you can configure it to any directory you want.
-
-```csharp
-using LiveMarkdown.Avalonia;
-
-FileBasedAsyncImageLoaderCache.CacheDirectory = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "YourApp",
-    "ImageCache");
-FileBasedAsyncImageLoaderCache.MaxCacheSizeBytes = 256L * 1024L * 1024L;
-FileBasedAsyncImageLoaderCache.MaxEntrySizeBytes = 32L * 1024L * 1024L;
-FileBasedAsyncImageLoaderCache.DefaultFreshnessLifetime = TimeSpan.FromDays(7);
-HttpAsyncImageLoaderHandler.Shared.EnableConditionalRequests = true;
-```
-
-The file cache stores original image bytes under SHA-256 keys and uses common HTTP freshness/validation headers
-such as `Cache-Control`, `Expires`, `ETag`, and `Last-Modified` when available.
-
-For advanced scenarios, you can even implement your own `AsyncImageLoaderCache`.
+Throughout the desktop Demo, hovering a web link shows its domain and automatically loads the preview. Text, favicon,
+and cover appear as they arrive. Click the original link to open it in the browser.
+See [Demo playgrounds](docs/DemoPlaygrounds.md) for ownership, platform routes, and verification steps.
 
 ## 🪄  Style Customization
 

@@ -8,6 +8,16 @@
     <StyleInclude Source="avares://LiveMarkdown.Avalonia/Styles.axaml"/>
     <StyleInclude Source="avares://LiveMarkdown.Avalonia.Mermaid/Styles.axaml"/>
 
+    <Style Selector="md|Link:pointerover">
+      <Setter Property="TextDecorations">
+        <TextDecorationCollection>
+          <TextDecoration
+            Location="Underline" StrokeDashArray="2,2"
+            StrokeThickness="1" StrokeThicknessUnit="Pixel"/>
+        </TextDecorationCollection>
+      </Setter>
+    </Style>
+
     <Style Selector="md|MarkdownRenderer">
       <Style Selector="^ Span.Emphasis">
         <Style Selector="^.Subscript">

@@ -1,0 +1,70 @@
+﻿<UserControl
+  x:Class="LiveMarkdown.Avalonia.Demo.Views.WebPreviewCard" xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shadui="clr-namespace:ShadUI;assembly=ShadUI"
+  xmlns:views="clr-namespace:LiveMarkdown.Avalonia.Demo.Views" MaxWidth="420"
+  FlowDirection="LeftToRight">
+  <Border
+    Margin="{DynamicResource PopupShadowMargin}"
+    BoxShadow="{DynamicResource PopupShadow}"
+    CornerRadius="{DynamicResource XlCornerRadius}">
+    <shadui:SmoothBorder
+      Background="{DynamicResource PopupBackgroundColor}"
+      BorderBrush="{DynamicResource BorderColor}"
+      BorderThickness="{DynamicResource PopupBorderThickness}"
+      ClipToBounds="True"
+      CornerRadius="{DynamicResource XlCornerRadius}">
+      <views:ContentSizeTransitionPanel
+        HorizontalAlignment="Stretch" ClipToBounds="True">
+        <StackPanel>
+          <Grid
+            Margin="14,9" ColumnDefinitions="Auto,*"
+            ColumnSpacing="8">
+            <Panel
+              Width="18" Height="18"
+              VerticalAlignment="Center">
+              <LucideIcon
+                x:Name="DefaultIcon" Kind="Globe"
+                Size="16"/>
+              <Image
+                x:Name="SiteIcon" IsVisible="False"/>
+            </Panel>
+            <TextBlock
+              x:Name="SiteAddress" Grid.Column="1"
+              VerticalAlignment="Center" FontWeight="SemiBold"
+              TextTrimming="CharacterEllipsis"/>
+          </Grid>
+
+          <Border
+            x:Name="Details"
+            BorderBrush="{DynamicResource BorderColor}"
+            BorderThickness="0,1,0,0" IsVisible="False">
+            <StackPanel>
+              <Image
+                x:Name="CoverImage" MaxHeight="190"
+                HorizontalAlignment="Center" IsVisible="False"
+                Stretch="UniformToFill"/>
+              <StackPanel
+                x:Name="DetailsText" Margin="14,11"
+                Spacing="5">
+                <TextBlock
+                  x:Name="PageTitle" FontSize="15"
+                  FontWeight="SemiBold" IsVisible="False"
+                  MaxLines="2" TextTrimming="CharacterEllipsis"
+                  TextWrapping="Wrap"/>
+                <TextBlock
+                  x:Name="PageDescription" IsVisible="False"
+                  MaxLines="3" Opacity="0.8"
+                  TextTrimming="CharacterEllipsis" TextWrapping="Wrap"/>
+                <TextBlock
+                  x:Name="StatusNote" FontSize="12"
+                  IsVisible="False" MaxLines="2"
+                  Opacity="0.7" TextTrimming="CharacterEllipsis"
+                  TextWrapping="Wrap"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </views:ContentSizeTransitionPanel>
+    </shadui:SmoothBorder>
+  </Border>
+</UserControl>

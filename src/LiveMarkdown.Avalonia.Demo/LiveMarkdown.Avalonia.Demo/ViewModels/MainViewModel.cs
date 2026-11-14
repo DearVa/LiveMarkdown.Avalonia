@@ -1,7 +1,5 @@
 ﻿using System.Collections.ObjectModel;
 using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -43,13 +41,15 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial int SearchMatchCount { get; private set; }
 
-    public string SearchResultCountText => SearchMatchCount == 0
-        ? "0/0"
-        : $"{SearchCurrentIndex + 1}/{SearchMatchCount}";
+    public string SearchResultCountText => SearchMatchCount == 0 ? "0/0" : $"{SearchCurrentIndex + 1}/{SearchMatchCount}";
 
     public bool HasSearchMatches => SearchMatchCount > 0;
 
-    public string? SelectedMarkdown { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSamplePage))]
+    public partial string? SelectedMarkdown { get; private set; }
+
+    public bool IsSamplePage => SelectedMarkdown is not ("Link" or "Hooks");
 
     public NavigationBarItem? SelectedItem
     {
@@ -61,7 +61,16 @@ public partial class MainViewModel : ViewModelBase
             if (value?.Content is string markdownName)
             {
                 SelectedMarkdown = markdownName;
-                _ = RenderMarkdownAsync(markdownName, animate: false);
+                if (IsSamplePage)
+                {
+                    RenderMarkdownAsync(markdownName, animate: false).Detach();
+                }
+                else
+                {
+                    cancellationTokenSource?.Cancel();
+                    ClearMarkdown();
+                    IsSearchOpen = false;
+                }
             }
         }
     }
@@ -98,7 +107,7 @@ public partial class MainViewModel : ViewModelBase
         var markdownFolderPath = Path.Combine(AppContext.BaseDirectory, "samples");
         foreach (var markdownFilePath in Directory.EnumerateFiles(markdownFolderPath, "*.md")
                      .OrderByDescending(path => path.EndsWith("README.md", StringComparison.OrdinalIgnoreCase))
-                     .ThenBy(path => path))
+                     .ThenBy(path => path, StringComparer.Ordinal))
         {
             var fileName = Path.GetFileNameWithoutExtension(markdownFilePath);
             NavigationItems.Add(
@@ -108,6 +117,7 @@ public partial class MainViewModel : ViewModelBase
                     Route = fileName
                 });
         }
+        NavigationItems.Add(new NavigationBarItem { Content = "Hooks", Route = "Hooks" });
         SelectedItem = NavigationItems.FirstOrDefault();
     }
 
@@ -122,13 +132,18 @@ public partial class MainViewModel : ViewModelBase
     {
         if (!string.IsNullOrEmpty(SelectedMarkdown))
         {
-            _ = RenderMarkdownAsync(SelectedMarkdown, animate: true);
+            RenderMarkdownAsync(SelectedMarkdown, animate: true).Detach();
         }
     }
 
     [RelayCommand]
     private void OpenSearch()
     {
+        if (!IsSamplePage)
+        {
+            return;
+        }
+
         var wasOpen = IsSearchOpen;
         IsSearchOpen = true;
         if (wasOpen)
@@ -219,11 +234,7 @@ public partial class MainViewModel : ViewModelBase
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
 
-        var currentIndex = count == 0
-            ? -1
-            : resetCurrentIndex
-                ? 0
-                : Math.Clamp(SearchCurrentIndex, 0, count - 1);
+        var currentIndex = count == 0 ? -1 : resetCurrentIndex ? 0 : Math.Clamp(SearchCurrentIndex, 0, count - 1);
 
         if (SearchCurrentIndex != currentIndex)
         {

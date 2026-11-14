@@ -9,7 +9,7 @@ namespace LiveMarkdown.Avalonia;
 /// <summary>
 /// Base class for nodes that synchronize Markdig objects with Avalonia controls or inlines.
 /// </summary>
-public abstract class MarkdownNode
+public abstract partial class MarkdownNode
 {
     /// <summary>
     /// Configures the registered Markdown node factories and returns the updated builder.
@@ -104,13 +104,14 @@ public abstract class MarkdownNode
         in ObservableStringBuilderChangedEventArgs change,
         CancellationToken cancellationToken)
     {
-        if (!IsDirty(markdownObject, change))
+        if (!_isReleased && !IsDirty(markdownObject, change))
         {
             // No need to update, the change does not affect this node
             return null;
         }
 
-        var result = UpdateCore(documentNode, markdownObject, change, cancellationToken);
+        _isReleased = false;
+        var result = UpdateWithHooks(documentNode, markdownObject, change, cancellationToken);
         span = markdownObject.Span;
 
         if (MarkdownRenderer.VerboseLogger?.IsValid is true)

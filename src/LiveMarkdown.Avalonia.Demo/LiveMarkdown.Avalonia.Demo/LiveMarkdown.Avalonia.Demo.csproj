@@ -15,6 +15,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter"/>
     <PackageReference Include="CommunityToolkit.Mvvm"/>
     <PackageReference Include="ClassicDiagnostics.Avalonia"/>
+    <PackageReference Include="AngleSharp"/>
   </ItemGroup>
 
   <ItemGroup>

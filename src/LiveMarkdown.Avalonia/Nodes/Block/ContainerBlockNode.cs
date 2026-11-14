@@ -37,6 +37,9 @@ public abstract class ContainerBlockNode<TContainerBlock> : BlockNode<TContainer
         proxy = new MarkdownRenderer.BlocksProxy(container.Children);
     }
 
+    /// <inheritdoc />
+    protected override void ReleaseChildren() => proxy.ReleaseNodes();
+
     /// <summary>
     /// Synchronizes child block nodes with the Markdig container.
     /// </summary>

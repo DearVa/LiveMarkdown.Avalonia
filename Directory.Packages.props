@@ -13,6 +13,8 @@
     <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="$(SvgControlsVersion)" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="ClassicDiagnostics.Avalonia" Version="0.0.2-preview" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
+    <PackageVersion Include="AngleSharp" Version="1.5.2" />
   </ItemGroup>
   <ItemGroup Label="Avalonia">
     <PackageVersion Include="Avalonia" Version="$(AvaloniaVersion)" />

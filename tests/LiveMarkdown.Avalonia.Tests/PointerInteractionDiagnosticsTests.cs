@@ -3,8 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia.Media;
-using LiveMarkdown.Avalonia;
 using NUnit.Framework;
 
 namespace LiveMarkdown.Avalonia.Tests;
@@ -139,7 +137,11 @@ public sealed class PointerInteractionDiagnosticsTests
                 trace.InstallPlatformCursorTrace(window);
                 window.Show();
 
-                var linkPoint = new Point(20, 20);
+                var linkGeometry = block.GetInlineGeometry(link) ?? throw new AssertionException("The link was not laid out.");
+                var lastFragment = linkGeometry.GetRects(window).Last();
+                var linkPoint = lastFragment.Center;
+                var dragEnd = new Point(lastFragment.Right + 10, lastFragment.Center.Y);
+                Assert.That(renderer.Bounds.Contains(dragEnd), Is.True, "The drag must end inside the renderer, past the link.");
                 window.MouseMove(linkPoint);
 
                 trace.Mark("link quick click");
@@ -148,9 +150,8 @@ public sealed class PointerInteractionDiagnosticsTests
 
                 trace.Mark("drag starting on link");
                 window.MouseDown(linkPoint, MouseButton.Left);
-                var dragEnd = new Point(400, 20);
                 window.MouseMove(dragEnd, RawInputModifiers.LeftMouseButton);
-                window.MouseMove(new Point(100, 20), RawInputModifiers.LeftMouseButton);
+                window.MouseMove(linkPoint, RawInputModifiers.LeftMouseButton);
                 window.MouseMove(dragEnd, RawInputModifiers.LeftMouseButton);
                 window.MouseUp(dragEnd, MouseButton.Left);
 

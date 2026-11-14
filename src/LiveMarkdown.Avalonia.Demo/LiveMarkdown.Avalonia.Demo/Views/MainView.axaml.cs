@@ -3,6 +3,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
+using LiveMarkdown.Avalonia.Demo.Links;
+using LiveMarkdown.Avalonia.Demo.Links.Preview;
 using LiveMarkdown.Avalonia.Demo.ViewModels;
 
 namespace LiveMarkdown.Avalonia.Demo.Views;
@@ -12,9 +14,11 @@ public partial class MainView : UserControl
     private const string SearchResultsHighlightName = "search-results";
     private const string SearchCurrentHighlightName = "search-current";
 
-    private MainViewModel viewModel = null!;
+    private readonly MainViewModel viewModel;
     private IReadOnlyList<TextHighlightMatch> searchMatches = [];
     private TextHighlightMatch? currentSearchMatch;
+    private DemoLinkInteraction? _linkInteraction;
+    private WebPreviewService? _previews;
 
     public MainView()
     {
@@ -24,6 +28,8 @@ public partial class MainView : UserControl
         MarkdownTextBlock.SetHighlightStyles(RootPanel, CreateSearchHighlightStyles());
 
         MarkdownRenderer.LayoutUpdated += HandleMarkdownRendererLayoutUpdated;
+        AttachedToVisualTree += HandleAttached;
+        DetachedFromVisualTree += HandleDetached;
 
         var rawScrollHelper = new AutoScrollHelper(RawMarkdownTextBlockScrollViewer);
         var renderScrollHelper = new AutoScrollHelper(MarkdownRendererScrollViewer);
@@ -33,6 +39,7 @@ public partial class MainView : UserControl
         viewModel.PropertyChanged += HandleViewModelPropertyChanged;
         viewModel.SearchChanged += HandleSearchChanged;
         viewModel.SearchNavigationRequested += HandleSearchNavigationRequested;
+        viewModel.SearchFocusRequested += (_, _) => Dispatcher.UIThread.Post(FocusSearchTextBox);
 
         void OnAutoScrollEnabledChanged(object? sender, bool enabled)
         {
@@ -47,12 +54,57 @@ public partial class MainView : UserControl
         }
     }
 
+    private void HandleAttached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            _previews = new WebPreviewService();
+        }
+
+        _linkInteraction = new DemoLinkInteraction(this, MarkdownRenderer, (_, result) =>
+        {
+            LinkOperationStatus.Text = result.Message;
+            LinkStatusBar.IsVisible = true;
+        }, _previews);
+        // Install the icon hook before the streaming source can render its first document.
+        MarkdownRenderer.MarkdownBuilder = viewModel.MarkdownBuilder;
+        ShowSelectedPage();
+    }
+
+    private void HandleDetached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        InteractiveContent.Content = null;
+        _linkInteraction?.Dispose();
+        _linkInteraction = null;
+        MarkdownRenderer.MarkdownBuilder = null;
+        MarkdownRenderer.DocumentUpdate = null;
+        _previews?.Dispose();
+        _previews = null;
+    }
+
     private void HandleViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.SelectedMarkdown) && _linkInteraction is not null)
+        {
+            _linkInteraction.Dismiss();
+            ShowSelectedPage();
+        }
+
         if (e.PropertyName == nameof(MainViewModel.IsSearchOpen) && viewModel.IsSearchOpen)
         {
             Dispatcher.UIThread.Post(FocusSearchTextBox);
         }
+    }
+
+    private void ShowSelectedPage()
+    {
+        LinkStatusBar.IsVisible = false;
+        InteractiveContent.Content = viewModel.SelectedMarkdown switch
+        {
+            "Link" => new LinkDemoView { Previews = _previews },
+            "Hooks" => new HooksDemoView { Previews = _previews },
+            _ => null
+        };
     }
 
     private void HandleSearchChanged(object? sender, EventArgs e) => ApplySearch(viewModel.SearchQuery);
@@ -184,25 +236,6 @@ public partial class MainView : UserControl
         var maximumOffset = Math.Max(0, scrollViewer.Extent.Height - scrollViewer.Viewport.Height);
         var targetOffset = scrollViewer.Offset.Y + targetCenter.Value.Y - scrollViewer.Viewport.Height / 2;
         scrollViewer.Offset = new Vector(scrollViewer.Offset.X, Math.Clamp(targetOffset, 0, maximumOffset));
-    }
-
-    private async void HandleMarkdownRendererLinkClick(object? sender, LinkClickedEventArgs e)
-    {
-        try
-        {
-            if (e.HRef is { IsAbsoluteUri: true, Scheme: "http" or "https" } url)
-            {
-                var launcher = TopLevel.GetTopLevel(this)?.Launcher;
-                if (launcher is not null)
-                {
-                    await launcher.LaunchUriAsync(url);
-                }
-            }
-        }
-        catch
-        {
-            // Ignore any exceptions when trying to open the link
-        }
     }
 }
 

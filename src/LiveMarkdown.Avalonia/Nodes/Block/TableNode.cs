@@ -41,6 +41,9 @@ public class TableNode : BlockNode<Table>
         };
     }
 
+    /// <inheritdoc />
+    protected override void ReleaseChildren() => proxy.ReleaseNodes();
+
     /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,

@@ -55,8 +55,26 @@ public abstract class BlockNode : MarkdownNode
                 .FirstOrDefault()
             ?? new NotImplementedBlockNode(block.GetType());
 
-        node.Update(documentNode, block, change, cancellationToken);
-        return node;
+        try
+        {
+            node.Update(documentNode, block, change, cancellationToken);
+            return node;
+        }
+        catch (Exception exception)
+        {
+            var error = exception;
+            try
+            {
+                node.Release();
+            }
+            catch (Exception cleanupError)
+            {
+                NodeHookErrors.Add(ref error, cleanupError);
+            }
+
+            NodeHookErrors.Throw(error);
+            throw;
+        }
     }
 }
 

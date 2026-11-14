@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.TextFormatting;
@@ -13,10 +13,9 @@ namespace LiveMarkdown.Avalonia;
 /// make a chip INTERACTIVE: there is no control to attach a handler to, and no bounds to position an
 /// affordance against. A run is not an input element.</para>
 ///
-/// <para>Links already have this: <c>Link.HitTestPoint</c> tags the shaped run and finds it again. This is the
-/// equivalent for code chips, built on the span table the block already computes in order to paint their
-/// backgrounds — a renderer that draws something a host may want to make clickable should let it find out what
-/// was clicked.</para>
+/// <para>Code-chip hit areas include their painted padding, unlike the text-only rectangles returned by
+/// <see cref="GetInlineGeometry"/>. They use the span table the block already computes to paint backgrounds,
+/// so hit areas and host affordances stay aligned with the visible chip.</para>
 /// </summary>
 public partial class MarkdownTextBlock
 {

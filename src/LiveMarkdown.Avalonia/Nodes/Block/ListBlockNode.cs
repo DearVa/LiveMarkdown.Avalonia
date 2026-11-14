@@ -25,6 +25,9 @@ public class ListBlockNode : BlockNode<ListBlock>
         proxy = new MarkdownRenderer.BlocksProxy(grid.Children);
     }
 
+    /// <inheritdoc />
+    protected override void ReleaseChildren() => proxy.ReleaseNodes();
+
     /// <inheritdoc/>
     protected override bool UpdateCore(
         DocumentNode documentNode,

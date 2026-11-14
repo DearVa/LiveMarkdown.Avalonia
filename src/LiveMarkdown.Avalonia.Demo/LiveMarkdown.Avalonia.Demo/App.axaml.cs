@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Logging;
@@ -31,8 +31,6 @@ public partial class App : Application, ILogSink
         AsyncImageLoader.DefaultCache = FileBasedAsyncImageLoaderCache.Shared;
 
         AvaloniaXamlLoader.Load(this);
-
-        this.AttachDevTools();
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -41,6 +39,7 @@ public partial class App : Application, ILogSink
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
                 desktop.MainWindow = new MainWindow();
+                this.AttachDevTools();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
                 singleViewPlatform.MainView = new MainView();

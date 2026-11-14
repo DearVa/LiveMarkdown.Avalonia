@@ -8,15 +8,13 @@ using Avalonia.Controls.Documents;
 using Avalonia.Controls.Metadata;
 using Avalonia.Input.Platform;
 using Avalonia.LogicalTree;
-using Avalonia.Media;
-using Avalonia.Media.TextFormatting;
 
 namespace LiveMarkdown.Avalonia;
 
 /// <summary>
 /// Represents a hyperlink rendered inside a Markdown text block.
 /// </summary>
-[PseudoClasses(":clicked", ":disabled")]
+[PseudoClasses(":clicked", ":disabled", ":pointerover", ":pressed")]
 public class Link : Span
 {
     /// <summary>
@@ -54,6 +52,7 @@ public class Link : Span
         set
         {
             if (!SetAndRaise(HRefProperty, ref field, value)) return;
+            _textBlock?.ResetLinkInteraction(this);
             UpdatePseudoClasses();
             _openCommand?.NotifyCanExecuteChanged();
             _copyCommand?.NotifyCanExecuteChanged();
@@ -82,10 +81,38 @@ public class Link : Span
         }
     }
 
-    internal string Tag { get; }
+    /// <summary>
+    /// Defines the read-only <see cref="IsPointerOver"/> property.
+    /// </summary>
+    public static readonly DirectProperty<Link, bool> IsPointerOverProperty =
+        AvaloniaProperty.RegisterDirect<Link, bool>(nameof(IsPointerOver), link => link.IsPointerOver);
 
-    private static long nextTagId;
-    private WeakReference<MarkdownTextBlock>? registeredTextBlock;
+    /// <summary>
+    /// Gets whether the pointer is over a rendered fragment of this link.
+    /// </summary>
+    public bool IsPointerOver
+    {
+        get;
+        private set => SetAndRaise(IsPointerOverProperty, ref field, value);
+    }
+
+    /// <summary>
+    /// Defines the read-only <see cref="IsPressed"/> property.
+    /// </summary>
+    public static readonly DirectProperty<Link, bool> IsPressedProperty =
+        AvaloniaProperty.RegisterDirect<Link, bool>(nameof(IsPressed), link => link.IsPressed);
+
+    /// <summary>
+    /// Gets whether a primary-button activation is pending over this link.
+    /// A drag that becomes text selection cancels this state.
+    /// </summary>
+    public bool IsPressed
+    {
+        get;
+        private set => SetAndRaise(IsPressedProperty, ref field, value);
+    }
+
+    private MarkdownTextBlock? _textBlock;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Link"/> class.
@@ -93,51 +120,37 @@ public class Link : Span
     public Link()
     {
         Classes.Add("Link");
-        FontFeatures =
-        [
-            new FontFeature
-            {
-                Tag = Tag = $"LINK:{Interlocked.Increment(ref nextTagId)}"
-            },
-        ];
         UpdatePseudoClasses();
     }
 
-    /// <summary>
-    /// Called when the link is attached to a logical tree.
-    /// </summary>
-    /// <param name="e">The event arguments for the logical tree attachment.</param>
+    /// <inheritdoc />
     protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
         base.OnAttachedToLogicalTree(e);
-
-        if (this.FindLogicalAncestorOfType<MarkdownTextBlock>() is not { } textBlock)
-        {
-            return;
-        }
-
-        if (registeredTextBlock?.TryGetTarget(out var oldTextBlock) == true && oldTextBlock != textBlock)
-        {
-            oldTextBlock.UnregisterLink(this);
-        }
-
-        registeredTextBlock = new WeakReference<MarkdownTextBlock>(textBlock);
-        textBlock.RegisterLink(this);
+        _textBlock = this.FindLogicalAncestorOfType<MarkdownTextBlock>();
     }
 
-    /// <summary>
-    /// Called when the link is detached from a logical tree.
-    /// </summary>
-    /// <param name="e">The event arguments for the logical tree detachment.</param>
+    /// <inheritdoc />
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
-        if (registeredTextBlock?.TryGetTarget(out var textBlock) == true)
-        {
-            textBlock.UnregisterLink(this);
-        }
-
-        registeredTextBlock = null;
+        _textBlock?.ResetLinkInteraction(this);
+        _textBlock = null;
+        SetIsPointerOver(false);
+        SetIsPressed(false);
         base.OnDetachedFromLogicalTree(e);
+    }
+
+    internal void SetIsPointerOver(bool value)
+    {
+        IsPointerOver = value;
+        if (!value) SetIsPressed(false);
+        PseudoClasses.Set(":pointerover", value);
+    }
+
+    internal void SetIsPressed(bool value)
+    {
+        IsPressed = value;
+        PseudoClasses.Set(":pressed", value);
     }
 
     /// <summary>
@@ -190,132 +203,6 @@ public class Link : Span
         if (this.FindLogicalAncestorOfType<TopLevel>() is not { Clipboard: { } clipboard }) return;
 
         await clipboard.SetTextAsync(text);
-    }
-
-    /// <summary>
-    /// This is a VERY hacky way to hit test an Link from a TextLayout.
-    /// Avalonia does not provide a built-in way to do this, so we rely on font features to mark link.
-    /// TODO: Remove this method when Avalonia provides a better way to hit test inlines.
-    /// </summary>
-    /// <param name="textLayout"></param>
-    /// <param name="point"></param>
-    /// <param name="linksByTag">The link index owned by the containing text block.</param>
-    /// <returns></returns>
-    internal static Link? HitTestPoint(TextLayout textLayout, Point point, IReadOnlyDictionary<string, Link> linksByTag)
-    {
-        var textLine = HitTestTextLine(textLayout, point);
-        var textRun = HitTestTextRun(textLine, point);
-        var tag = textRun?.Properties?.FontFeatures?.FirstOrDefault(f => f.Tag.StartsWith("LINK:", StringComparison.Ordinal))?.Tag;
-        return tag is not null && linksByTag.TryGetValue(tag, out var link) ? link : null;
-    }
-
-    // Following code is copied from Avalonia's TextLine implementation
-    private static TextLine? HitTestTextLine(TextLayout textLayout, Point point)
-    {
-        var textLines = textLayout.TextLines;
-        var currentY = 0d;
-        foreach (var currentLine in textLines)
-        {
-            if (currentY + currentLine.Height > point.Y) return currentLine;
-
-            currentY += currentLine.Height;
-        }
-
-        return null;
-    }
-
-    private static TextRun? HitTestTextRun(TextLine? textLine, Point point)
-    {
-        if (textLine?.TextRuns is not { Count: > 0 } textRuns)
-        {
-            return null;
-        }
-
-        var distance = point.X - textLine.Start;
-        var lastIndex = textRuns.Count - 1;
-
-        if (textRuns[lastIndex] is TextEndOfLine)
-        {
-            lastIndex--;
-        }
-
-        if (lastIndex < 0)
-        {
-            return null;
-        }
-
-        if (distance <= 0)
-        {
-            return null;
-        }
-
-        if (distance >= textLine.WidthIncludingTrailingWhitespace)
-        {
-            return null;
-        }
-
-        // process hit that happens within the line
-        var currentDistance = 0.0;
-        TextRun? currentRun = null;
-        for (var i = 0; i <= lastIndex; i++)
-        {
-            currentRun = textRuns[i];
-
-            if (currentRun is ShapedTextRun { ShapedBuffer.IsLeftToRight: false })
-            {
-                var rightToLeftIndex = i;
-
-                while (rightToLeftIndex + 1 <= textRuns.Count - 1)
-                {
-                    if (textRuns[++rightToLeftIndex] is not ShapedTextRun nextShaped || nextShaped.ShapedBuffer.IsLeftToRight)
-                    {
-                        break;
-                    }
-
-                    rightToLeftIndex++;
-                }
-
-                for (var j = i; j <= rightToLeftIndex; j++)
-                {
-                    if (j > textRuns.Count - 1)
-                    {
-                        break;
-                    }
-
-                    currentRun = textRuns[j];
-
-                    if (currentRun is not ShapedTextRun shapedTextRun)
-                    {
-                        continue;
-                    }
-
-                    if (currentDistance + shapedTextRun.Size.Width <= distance)
-                    {
-                        currentDistance += shapedTextRun.Size.Width;
-                        continue;
-                    }
-
-                    return currentRun;
-                }
-            }
-
-            if (currentRun is DrawableTextRun drawableTextRun)
-            {
-                if (i < textRuns.Count - 1 && currentDistance + drawableTextRun.Size.Width < distance)
-                {
-                    currentDistance += drawableTextRun.Size.Width;
-                    continue;
-                }
-            }
-            else
-            {
-                continue;
-            }
-
-            break;
-        }
-
-        return currentRun;
     }
 
     private void UpdatePseudoClasses()

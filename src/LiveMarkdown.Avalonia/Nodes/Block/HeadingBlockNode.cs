@@ -27,6 +27,9 @@ public class HeadingBlockNode : BlockNode<HeadingBlock>
         };
     }
 
+    /// <inheritdoc />
+    protected override void ReleaseChildren() => headingInlines.Release();
+
     /// <summary>
     /// Updates heading inlines and applies the heading level classes.
     /// </summary>

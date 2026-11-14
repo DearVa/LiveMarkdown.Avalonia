@@ -36,12 +36,32 @@ public partial class MarkdownRenderer
             get => children[index];
             set
             {
+                var previous = children[index];
                 target[index] = value.Inline;
                 children[index] = value;
+                previous.Release();
             }
         }
 
         private readonly List<InlineNode> children = [];
+
+        internal void ReleaseNodes()
+        {
+            Exception? error = null;
+            foreach (var child in children)
+            {
+                try
+                {
+                    child.Release();
+                }
+                catch (Exception exception)
+                {
+                    NodeHookErrors.Add(ref error, exception);
+                }
+            }
+
+            NodeHookErrors.Throw(error);
+        }
 
         /// <summary>
         /// Adds an inline node and its Avalonia inline to the target collection.
@@ -63,6 +83,7 @@ public partial class MarkdownRenderer
             var node = children[index];
             target.Remove(node.Inline);
             children.RemoveAt(index);
+            node.Release();
             Debug.Assert(children.Count == target.Count, "Children count mismatch");
         }
     }
@@ -122,12 +143,32 @@ public partial class MarkdownRenderer
             get => children[index];
             set
             {
+                var previous = children[index];
                 target[index] = value.Control;
                 children[index] = value;
+                previous.Release();
             }
         }
 
         private readonly List<BlockNode> children = [];
+
+        internal void ReleaseNodes()
+        {
+            Exception? error = null;
+            foreach (var child in children)
+            {
+                try
+                {
+                    child.Release();
+                }
+                catch (Exception exception)
+                {
+                    NodeHookErrors.Add(ref error, exception);
+                }
+            }
+
+            NodeHookErrors.Throw(error);
+        }
 
         /// <summary>
         /// Adds a block node and its control to the target collection.
@@ -160,7 +201,12 @@ public partial class MarkdownRenderer
         {
             target[index] = control;
             if (children[index] is MockBlockNode mockBlockNode) mockBlockNode.SetControl(control);
-            else children[index] = new MockBlockNode(control);
+            else
+            {
+                var previous = children[index];
+                children[index] = new MockBlockNode(control);
+                previous.Release();
+            }
         }
 
         /// <summary>
@@ -172,6 +218,7 @@ public partial class MarkdownRenderer
             var node = children[index];
             target.Remove(node.Control);
             children.RemoveAt(index);
+            node.Release();
             Debug.Assert(children.Count == target.Count, "Children count mismatch");
         }
 
@@ -180,8 +227,15 @@ public partial class MarkdownRenderer
         /// </summary>
         public void Clear()
         {
-            target.Clear();
-            children.Clear();
+            try
+            {
+                ReleaseNodes();
+            }
+            finally
+            {
+                target.Clear();
+                children.Clear();
+            }
         }
     }
 

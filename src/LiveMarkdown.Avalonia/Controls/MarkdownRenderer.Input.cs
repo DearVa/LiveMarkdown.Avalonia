@@ -104,6 +104,7 @@ public partial class MarkdownRenderer
     private Point _interactionStartPoint;
     private MarkdownTextBlock? _pendingLinkBlock;
     private Link? _pendingLink;
+    private Link? _pressedLink;
     private int _pendingLinkPosition;
     private MarkdownTextBlock? _pointerOverBlock;
 
@@ -226,6 +227,7 @@ public partial class MarkdownRenderer
         else
         {
             UpdatePointerOverLink(e, _activeScopeBlocks);
+            UpdatePointerInteractionPseudoClasses();
         }
 
         switch (_pointerInteractionState)
@@ -360,9 +362,10 @@ public partial class MarkdownRenderer
     /// <inheritdoc/>
     protected override void OnPointerExited(PointerEventArgs e)
     {
-        if (_interactionPointer == e.Pointer)
+        if (e.Pointer.IsPrimary)
         {
             ClearPointerOverBlock();
+            _pressedLink?.SetIsPressed(false);
         }
 
         base.OnPointerExited(e);
@@ -444,7 +447,7 @@ public partial class MarkdownRenderer
             return;
         }
 
-        var args = new LinkClickedEventArgs(MarkdownTextBlock.LinkClickEvent, block, link.HRef);
+        var args = new LinkClickedEventArgs(MarkdownTextBlock.LinkClickEvent, block, link.HRef) { Link = link };
         block.RaiseEvent(args);
         link.IsClicked = true;
     }
@@ -498,8 +501,24 @@ public partial class MarkdownRenderer
 
     private void UpdatePointerInteractionPseudoClasses()
     {
+        var pressedLink = _pointerInteractionState == PointerInteractionState.PendingLink ? _pendingLink : null;
+        if (!ReferenceEquals(_pressedLink, pressedLink)) _pressedLink?.SetIsPressed(false);
+        _pressedLink = pressedLink;
+        _pressedLink?.SetIsPressed(ReferenceEquals(_pointerOverBlock?.PointerOverLink, _pressedLink));
         PseudoClasses.Set(":link-pending", _pointerInteractionState == PointerInteractionState.PendingLink);
         PseudoClasses.Set(":selecting", _pointerInteractionState == PointerInteractionState.DraggingSelection);
+    }
+
+    internal void CancelLinkInteraction(Link link)
+    {
+        if (ReferenceEquals(_pendingLink, link)) EndPointerInteraction();
+        if (ReferenceEquals(_contextMenuLink, link)) ClearContextMenuCandidate();
+    }
+
+    internal void CancelLinkInteraction(MarkdownTextBlock block)
+    {
+        if (ReferenceEquals(_pendingLinkBlock, block)) EndPointerInteraction();
+        if (ReferenceEquals(_contextMenuBlock, block)) ClearContextMenuCandidate();
     }
 
     internal bool IsPointerSelectionDragging => _pointerInteractionState == PointerInteractionState.DraggingSelection;

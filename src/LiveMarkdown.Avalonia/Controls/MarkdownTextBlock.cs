@@ -116,11 +116,6 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     /// </summary>
     public SourceSpan SourceSpan { get; internal set; }
 
-    // Link markers are scoped to this text block. The dictionary is maintained by
-    // Link's logical-tree lifetime callbacks, so rebuilding a TextLayout does not
-    // require walking the inline tree again.
-    private readonly Dictionary<string, Link> linksByTag = [];
-
     private TextHighlightStyles? _subscribedHighlightStyles;
     private TextPaintSnapshot _paintSnapshot = TextPaintSnapshot.Empty;
     private IReadOnlyList<TextRun>? _paintSnapshotTextRuns;
@@ -137,6 +132,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     public MarkdownTextBlock()
     {
         Highlights.Changed += HandleHighlightsChanged;
+        LayoutUpdated += HandleLinkLayoutUpdated;
     }
 
     internal MarkdownSelectionScope? SelectionScope { get; private set; }
@@ -327,10 +323,8 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         _registeredHighlightPaintSnapshot = HighlightPaintSnapshot.Empty;
         _lineGeometryLayout = null;
         _lineGeometry = [];
-        linksByTag.Clear();
-        pointerLink = null;
-        pressingLink = null;
-        UpdatePseudoClass();
+        ClearLinkInteraction();
+        ClearInlineGeometry();
 
         base.OnDetachedFromLogicalTree(e);
     }
@@ -346,6 +340,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        ClearLinkInteraction();
         ReleaseSelectionScope();
         InvalidateRendererTextState(e.AttachmentPoint);
         base.OnDetachedFromVisualTree(e);
@@ -370,6 +365,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
 
         if (change.Property == IsVisibleProperty)
         {
+            if (!IsVisible) ClearLinkInteraction();
             InvalidateRendererTextState(this);
         }
 
@@ -441,30 +437,6 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         }
 
         InvalidateVisual();
-    }
-
-    internal void RegisterLink(Link link)
-    {
-        if (linksByTag.TryGetValue(link.Tag, out var existing) && !ReferenceEquals(existing, link))
-        {
-            throw new InvalidOperationException($"Duplicate link marker '{link.Tag}'.");
-        }
-
-        linksByTag[link.Tag] = link;
-    }
-
-    internal void UnregisterLink(Link link)
-    {
-        if (linksByTag.TryGetValue(link.Tag, out var existing) && ReferenceEquals(existing, link))
-        {
-            linksByTag.Remove(link.Tag);
-        }
-
-        if (ReferenceEquals(pointerLink, link))
-        {
-            pointerLink = null;
-            UpdatePseudoClass();
-        }
     }
 
     // Selection remains an interaction state owned by SelectableTextBlock. Paint overrides are
@@ -2054,6 +2026,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     protected override void OnMeasureInvalidated()
     {
         _layoutText = null;
+        if (_textRuns is null) ClearInlineGeometry();
         var textRuns = _textRuns;
         base.OnMeasureInvalidated();
         _textRuns = textRuns;
@@ -2070,85 +2043,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         }
     }
 
-    private Link? pointerLink;
-    private Link? pressingLink;
 
-    /// <inheritdoc/>
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        UpdatePointerOverLink(e.GetPosition(this));
-
-        if (this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault() is not null)
-        {
-            pressingLink = null;
-            return;
-        }
-
-        pressingLink = pointerLink;
-        base.OnPointerPressed(e);
-    }
-
-    /// <inheritdoc/>
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
-    {
-        if (this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault() is not null)
-        {
-            pressingLink = null;
-            return;
-        }
-
-        if (pressingLink is not null && pointerLink == pressingLink)
-        {
-            switch (e.InitialPressMouseButton)
-            {
-                case MouseButton.Left when pressingLink.HRef is not null:
-                {
-                    var args = new LinkClickedEventArgs(LinkClickEvent, this, pressingLink.HRef);
-                    RaiseEvent(args);
-                    e.Handled = args.Handled;
-                    pressingLink.IsClicked = true;
-                    break;
-                }
-                case MouseButton.Right when LinkContextMenu is { } contextMenu:
-                {
-                    contextMenu.DataContext = pointerLink;
-                    contextMenu.Open(this);
-                    e.Handled = true;
-                    break;
-                }
-            }
-        }
-
-        pressingLink = null;
-
-        base.OnPointerReleased(e);
-    }
-
-    /// <inheritdoc/>
-    protected override void OnPointerMoved(PointerEventArgs e)
-    {
-        var renderer = this.GetVisualAncestors().OfType<MarkdownRenderer>().FirstOrDefault();
-        if (renderer?.IsPointerSelectionDragging != true)
-        {
-            UpdatePointerOverLink(e.GetPosition(this));
-        }
-
-        if (renderer is not null)
-        {
-            return;
-        }
-
-        base.OnPointerMoved(e);
-    }
-
-    /// <inheritdoc/>
-    protected override void OnPointerExited(PointerEventArgs e)
-    {
-        pointerLink = null;
-        UpdatePseudoClass();
-
-        base.OnPointerExited(e);
-    }
 
     /// <summary>
     /// Selects all text represented by this block.
@@ -2159,27 +2054,4 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         SetCurrentValue(SelectionEndProperty, EscapedTextLength);
     }
 
-    internal Link? UpdatePointerOverLink(Point point)
-    {
-        pointerLink = Link.HitTestPoint(TextLayout, point, linksByTag);
-
-        UpdatePseudoClass();
-        return pointerLink;
-    }
-
-    internal void ClearPointerOverLink()
-    {
-        if (pointerLink is null)
-        {
-            return;
-        }
-
-        pointerLink = null;
-        UpdatePseudoClass();
-    }
-
-    private void UpdatePseudoClass()
-    {
-        PseudoClasses.Set(":pointerover-link", pointerLink is not null);
-    }
 }
