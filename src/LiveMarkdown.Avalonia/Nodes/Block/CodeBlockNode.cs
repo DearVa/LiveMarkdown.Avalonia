@@ -59,6 +59,7 @@ public class CodeBlockNode : BlockNode<Markdig.Syntax.CodeBlock>
 
         _codeBlock.SourceSpan = codeBlock.Span;
 
+        var baseline = _codeBlock.BeginRevealUpdate(documentNode.Owner);
         var inlines = _codeBlock.Inlines;
         foreach (var (slice, lineIndex) in codeBlock.Lines.Lines.Take(codeBlock.Lines.Count).Select((l, i) => (l.Slice, i)))
         {
@@ -114,10 +115,16 @@ public class CodeBlockNode : BlockNode<Markdig.Syntax.CodeBlock>
         }
 
         // Highlighting only works for closed FencedCodeBlock with Info
-        if (codeBlock is not FencedCodeBlock fencedCodeBlock) return true;
+        if (codeBlock is FencedCodeBlock fencedCodeBlock)
+        {
+            _codeBlock.Language = fencedCodeBlock.Info?.Trim();
+            _codeBlock.HighlightSyntax();
+        }
 
-        _codeBlock.Language = fencedCodeBlock.Info?.Trim();
-        _codeBlock.HighlightSyntax();
+        if (baseline is { } previous)
+        {
+            _codeBlock.CodeTextBlock?.ApplyRevealUpdate(previous);
+        }
 
         return true;
     }

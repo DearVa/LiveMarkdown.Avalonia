@@ -2,6 +2,7 @@
 // @author https://github.com/AuroraZiling
 // @author https://github.com/SlimeNull
 
+using System.Diagnostics;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
@@ -9,6 +10,8 @@ using Avalonia.Controls.Metadata;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Logging;
+using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using TextMateSharp.Grammars;
 
 namespace LiveMarkdown.Avalonia;
@@ -131,6 +134,66 @@ public partial class MarkdownRenderer : Control
     }
 
     /// <summary>
+    /// Defines the <see cref="StreamingRevealMode"/> property.
+    /// </summary>
+    public static readonly StyledProperty<MarkdownStreamingRevealMode> StreamingRevealModeProperty =
+        MarkdownTextBlock.StreamingRevealModeProperty.AddOwner<MarkdownRenderer>();
+
+    /// <summary>
+    /// Gets or sets the reveal animation inherited by streamed text and code blocks.
+    /// </summary>
+    public MarkdownStreamingRevealMode StreamingRevealMode
+    {
+        get => GetValue(StreamingRevealModeProperty);
+        set => SetValue(StreamingRevealModeProperty, value);
+    }
+
+    /// <summary>
+    /// Defines the <see cref="StreamingRevealDuration"/> property.
+    /// </summary>
+    public static readonly StyledProperty<TimeSpan> StreamingRevealDurationProperty =
+        MarkdownTextBlock.StreamingRevealDurationProperty.AddOwner<MarkdownRenderer>();
+
+    /// <summary>
+    /// Gets or sets how long each newly streamed text chunk or line takes to fade in.
+    /// </summary>
+    public TimeSpan StreamingRevealDuration
+    {
+        get => GetValue(StreamingRevealDurationProperty);
+        set => SetValue(StreamingRevealDurationProperty, value);
+    }
+
+    /// <summary>
+    /// Defines the <see cref="StreamingRevealRiseDuration"/> property.
+    /// </summary>
+    public static readonly StyledProperty<TimeSpan> StreamingRevealRiseDurationProperty =
+        MarkdownTextBlock.StreamingRevealRiseDurationProperty.AddOwner<MarkdownRenderer>();
+
+    /// <summary>
+    /// Gets or sets how long newly appearing lines take to rise into place.
+    /// </summary>
+    public TimeSpan StreamingRevealRiseDuration
+    {
+        get => GetValue(StreamingRevealRiseDurationProperty);
+        set => SetValue(StreamingRevealRiseDurationProperty, value);
+    }
+
+    /// <summary>
+    /// Defines the <see cref="StreamingRevealOffset"/> property.
+    /// </summary>
+    public static readonly StyledProperty<double> StreamingRevealOffsetProperty =
+        MarkdownTextBlock.StreamingRevealOffsetProperty.AddOwner<MarkdownRenderer>();
+
+    /// <summary>
+    /// Gets or sets the vertical rise distance in DIPs inherited by streamed text and code blocks.
+    /// </summary>
+    public double StreamingRevealOffset
+    {
+        get => GetValue(StreamingRevealOffsetProperty);
+        set => SetValue(StreamingRevealOffsetProperty, value);
+    }
+
+    /// <summary>
     /// Raised when a Link is clicked.
     /// </summary>
     public event EventHandler<LinkClickedEventArgs>? LinkClick
@@ -168,6 +231,79 @@ public partial class MarkdownRenderer : Control
     private MarkdownDocumentUpdate? documentUpdate;
 
     private readonly DocumentNode documentNode;
+
+    internal long StreamingUpdateTimestamp { get; private set; }
+    internal bool IsApplyingStreamingUpdate => StreamingUpdateTimestamp != 0;
+    private bool _mayHaveActiveReveal;
+    private long _lastRevealReset;
+
+    internal (string Text, int LineCount)? BeginRevealUpdate(MarkdownTextBlock block)
+    {
+        if (!block.IsStreamingRevealEnabled) return null;
+        if (IsApplyingStreamingUpdate && block.IsAttachedToVisualTree())
+        {
+            _mayHaveActiveReveal = true;
+            return block.CaptureRevealBaseline();
+        }
+
+        return null;
+    }
+
+    internal void RevealDeferredText(MarkdownTextBlock block, (string Text, int LineCount) baseline, long created)
+    {
+        if (created <= _lastRevealReset || Stopwatch.GetElapsedTime(created) >= block.EffectiveRevealDuration) return;
+        _mayHaveActiveReveal = true;
+        block.ApplyRevealUpdate(baseline);
+    }
+
+    internal static void RememberStreamingAttachment(MarkdownTextBlock block)
+    {
+        // In a table, the ScrollViewer takes logical ownership immediately but may
+        // not present its content until measure, after the document update returns.
+        if (block.TemplatedParent is not CodeBlock &&
+            block.FindLogicalAncestorOfType<MarkdownRenderer>() is { IsApplyingStreamingUpdate: true } renderer)
+        {
+            block.StreamingAttachTimestamp = renderer.StreamingUpdateTimestamp;
+        }
+    }
+
+    internal static void RevealNewTextBlockIfStreaming(MarkdownTextBlock block)
+    {
+        // Template parts may attach after the document update, or before OnApplyTemplate
+        // supplies their inlines. CodeBlock handles both orderings.
+        if (block.TemplatedParent is CodeBlock code)
+        {
+            code.TryRevealTemplateText();
+        }
+        else if (block.FindAncestorOfType<MarkdownRenderer>() is { } renderer)
+        {
+            var created = block.StreamingAttachTimestamp;
+            block.StreamingAttachTimestamp = 0;
+            if (created != 0) renderer.RevealDeferredText(block, (string.Empty, 0), created);
+            else if (renderer.IsApplyingStreamingUpdate)
+            {
+                renderer._mayHaveActiveReveal = true;
+                block.ApplyRevealUpdate((string.Empty, 0));
+            }
+        }
+    }
+
+    private void ResetStreamingReveals(long timestamp)
+    {
+        _lastRevealReset = timestamp;
+        if (!_mayHaveActiveReveal) return;
+
+        _mayHaveActiveReveal = false;
+        // Custom container nodes can skip updates even on a full pass. Don't rely
+        // on UpdateCore being called on every previously animated leaf.
+        foreach (var visual in this.GetVisualDescendants())
+        {
+            if (visual is MarkdownTextBlock text && text.FindAncestorOfType<MarkdownRenderer>() == this)
+            {
+                text.ClearStreamingReveal();
+            }
+        }
+    }
 
     internal static readonly ParametrizedLogger? VerboseLogger;
 
@@ -250,7 +386,10 @@ public partial class MarkdownRenderer : Control
         // intermediate empty tree before its first measure.
         if (value != null)
         {
-            var change = value is MarkdownDocumentUpdate.Incremental incremental && previous is not null && incremental.Follows(previous) ?
+            var followsPrevious = value is MarkdownDocumentUpdate.Incremental incremental && previous is not null && incremental.Follows(previous);
+            var time = Stopwatch.GetTimestamp();
+            if (!followsPrevious) ResetStreamingReveals(time);
+            var change = followsPrevious ?
                 value.Change :
                 new ObservableStringBuilderChangedEventArgs(
                     0,
@@ -258,19 +397,28 @@ public partial class MarkdownRenderer : Control
                     value.Document.GetLength(),
                     value.Version);
 
-            var time = DateTimeOffset.UtcNow;
-            documentNode.Update(documentNode, value.Document, change, CancellationToken.None);
+            var outerStreamingUpdate = StreamingUpdateTimestamp;
+            StreamingUpdateTimestamp = followsPrevious && this.IsAttachedToVisualTree() ? time : 0;
+            try
+            {
+                documentNode.Update(documentNode, value.Document, change, CancellationToken.None);
+            }
+            finally
+            {
+                StreamingUpdateTimestamp = outerStreamingUpdate;
+            }
 
             if (VerboseLogger?.IsValid is true)
             {
                 VerboseLogger.Value.Log(
                     this,
                     "Render markdown in {TotalMilliseconds} ms.",
-                    (DateTimeOffset.UtcNow - time).TotalMilliseconds);
+                    Stopwatch.GetElapsedTime(time).TotalMilliseconds);
             }
         }
         else
         {
+            ResetStreamingReveals(Stopwatch.GetTimestamp());
             documentNode.Clear();
         }
 

@@ -10,7 +10,8 @@ namespace LiveMarkdown.Avalonia.Demo.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    public ObservableStringBuilder MarkdownBuilder { get; } = new();
+    [ObservableProperty]
+    public partial ObservableStringBuilder MarkdownBuilder { get; private set; } = new();
 
     public ObservableCollection<NavigationBarItem> NavigationItems { get; } = [];
 
@@ -19,6 +20,26 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial double RenderSpeed { get; set; } = 30d;
+
+    public MarkdownStreamingRevealMode[] RevealModes { get; } = Enum.GetValues<MarkdownStreamingRevealMode>();
+
+    [ObservableProperty]
+    public partial MarkdownStreamingRevealMode RevealMode { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RevealDuration))]
+    public partial double RevealMilliseconds { get; set; } = 220;
+
+    public TimeSpan RevealDuration => TimeSpan.FromMilliseconds(RevealMilliseconds);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RevealRiseDuration))]
+    public partial double RevealRiseMilliseconds { get; set; } = 380;
+
+    public TimeSpan RevealRiseDuration => TimeSpan.FromMilliseconds(RevealRiseMilliseconds);
+
+    [ObservableProperty]
+    public partial double RevealOffset { get; set; } = 4;
 
     [ObservableProperty]
     public partial bool IsSidebarExpanded { get; set; } = true;
@@ -47,9 +68,12 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSamplePage))]
+    [NotifyPropertyChangedFor(nameof(IsStreamingSample))]
     public partial string? SelectedMarkdown { get; private set; }
 
     public bool IsSamplePage => SelectedMarkdown is not ("Link" or "Hooks");
+
+    public bool IsStreamingSample => SelectedMarkdown == "Streaming";
 
     public NavigationBarItem? SelectedItem
     {
@@ -185,8 +209,6 @@ public partial class MainViewModel : ViewModelBase
             var markdownFilePath = Path.Combine(AppContext.BaseDirectory, "samples", markdownFileName + ".md");
             if (!File.Exists(markdownFilePath)) return;
 
-            ClearMarkdown();
-
             cancellationTokenSource = new CancellationTokenSource();
             var cancellationToken = cancellationTokenSource.Token;
 
@@ -195,9 +217,12 @@ public partial class MainViewModel : ViewModelBase
                 using var reader = new StreamReader(markdownFilePath);
                 var fullText = await reader.ReadToEndAsync(cancellationToken);
                 RawMarkdownText = fullText;
-                MarkdownBuilder.Append(fullText);
+                // A sample switch is a full document load, not a chunk of the previous stream.
+                MarkdownBuilder = new ObservableStringBuilder(fullText);
                 return;
             }
+
+            ClearMarkdown();
 
             async IAsyncEnumerable<string> ReadBlocksAsync()
             {

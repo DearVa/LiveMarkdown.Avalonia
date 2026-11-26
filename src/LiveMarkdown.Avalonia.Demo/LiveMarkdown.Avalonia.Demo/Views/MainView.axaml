@@ -48,25 +48,6 @@
               <StackPanel
                 IsVisible="{Binding IsSamplePage}"
                 Orientation="Horizontal" Spacing="12">
-                <TextBlock
-                  Classes="Small" VerticalAlignment="Center"
-                  Text="Render speed:"/>
-                <Slider
-                  Width="100" VerticalAlignment="Center"
-                  Maximum="100" Minimum="1"
-                  Value="{Binding RenderSpeed}"/>
-                <Button
-                  Classes="Ghost Compact Uniform" VerticalAlignment="Center"
-                  Command="{Binding ResetMarkdownCommand}"
-                  ToolTip.Tip="Reset rendered Markdown">
-                  <LucideIcon
-                    Kind="RotateCcw" Size="16"/>
-                </Button>
-                <Rectangle
-                  Width="1" Height="16"
-                  Margin="4,0" VerticalAlignment="Center"
-                  Fill="{DynamicResource BorderColor}"/>
-
                 <ToggleButton
                   Classes="Ghost Compact Uniform" VerticalAlignment="Center"
                   IsChecked="{Binding IsSearchOpen, Mode=TwoWay}"
@@ -110,11 +91,81 @@
           <Grid
             Margin="16" ColumnDefinitions="*,16,*"
             IsVisible="{Binding IsSamplePage}"
-            RowDefinitions="*">
+            RowDefinitions="Auto,*">
+
+            <WrapPanel
+              Grid.ColumnSpan="3" Margin="0,0,0,12"
+              ItemSpacing="16" LineSpacing="6">
+              <StackPanel
+                Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                  VerticalAlignment="Center" Text="Reveal"/>
+                <ComboBox
+                  AutomationProperties.Name="Streaming reveal mode"
+                  ItemsSource="{Binding RevealModes}"
+                  SelectedItem="{Binding RevealMode, Mode=TwoWay}"/>
+              </StackPanel>
+              <StackPanel
+                Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                  VerticalAlignment="Center" Text="Fade"/>
+                <Slider
+                  Width="90" VerticalAlignment="Center"
+                  AutomationProperties.Name="Reveal fade duration in milliseconds" IsSnapToTickEnabled="True"
+                  Maximum="1200" Minimum="0"
+                  TickFrequency="20"
+                  Value="{Binding RevealMilliseconds, Mode=TwoWay}"/>
+                <TextBlock
+                  MinWidth="54" VerticalAlignment="Center"
+                  Text="{Binding RevealMilliseconds, StringFormat='{}{0:0} ms'}"/>
+              </StackPanel>
+              <StackPanel
+                Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                  VerticalAlignment="Center" Text="Rise duration"/>
+                <Slider
+                  Width="90" VerticalAlignment="Center"
+                  AutomationProperties.Name="Reveal rise duration in milliseconds" IsSnapToTickEnabled="True"
+                  Maximum="1200" Minimum="0"
+                  TickFrequency="20"
+                  Value="{Binding RevealRiseMilliseconds, Mode=TwoWay}"/>
+                <TextBlock
+                  MinWidth="54" VerticalAlignment="Center"
+                  Text="{Binding RevealRiseMilliseconds, StringFormat='{}{0:0} ms'}"/>
+              </StackPanel>
+              <StackPanel
+                Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                  VerticalAlignment="Center" Text="Rise"/>
+                <Slider
+                  Width="72" VerticalAlignment="Center"
+                  AutomationProperties.Name="Reveal vertical rise offset" IsSnapToTickEnabled="True"
+                  Maximum="16" Minimum="0"
+                  TickFrequency="1"
+                  Value="{Binding RevealOffset, Mode=TwoWay}"/>
+                <TextBlock
+                  MinWidth="38" VerticalAlignment="Center"
+                  Text="{Binding RevealOffset, StringFormat='{}{0:0} px'}"/>
+              </StackPanel>
+              <StackPanel
+                Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                  VerticalAlignment="Center" Text="Render speed"/>
+                <Slider
+                  Width="90" VerticalAlignment="Center"
+                  AutomationProperties.Name="Render speed" Maximum="100"
+                  Minimum="1"
+                  Value="{Binding RenderSpeed}"/>
+              </StackPanel>
+              <Button
+                Classes="Outline"
+                Command="{Binding ResetMarkdownCommand}"
+                Content="Replay stream"/>
+            </WrapPanel>
 
             <!--  Original Markdown  -->
             <ScrollViewer
-              x:Name="RawMarkdownTextBlockScrollViewer" Grid.Row="0"
+              x:Name="RawMarkdownTextBlockScrollViewer" Grid.Row="1"
               Grid.Column="0"
               Background="{DynamicResource CardBackgroundColor}"
               BorderBrush="{DynamicResource BorderColor}"
@@ -127,14 +178,29 @@
 
             <!--  Markdown Renderer  -->
             <ScrollViewer
-              x:Name="MarkdownRendererScrollViewer" Grid.Row="0"
+              x:Name="MarkdownRendererScrollViewer" Grid.Row="1"
               Grid.Column="2"
-              Background="{DynamicResource CardBackgroundColor}"
               BorderBrush="{DynamicResource BorderColor}"
-              BorderThickness="1" CornerRadius="4">
+              BorderThickness="1"
+              Classes.reveal-sample="{Binding IsStreamingSample}"
+              CornerRadius="4">
+              <ScrollViewer.Styles>
+                <Style Selector="ScrollViewer.reveal-sample">
+                  <Setter Property="Background">
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                      <GradientStop Offset="0" Color="#28368EB8"/>
+                      <GradientStop Offset="1" Color="#28D89154"/>
+                    </LinearGradientBrush>
+                  </Setter>
+                </Style>
+              </ScrollViewer.Styles>
               <md:MarkdownRenderer
                 x:Name="MarkdownRenderer" Margin="12,12"
-                CodeBlockColorTheme="{Binding SelectedColorTheme}">
+                CodeBlockColorTheme="{Binding SelectedColorTheme}"
+                StreamingRevealDuration="{Binding RevealDuration}"
+                StreamingRevealMode="{Binding RevealMode}"
+                StreamingRevealOffset="{Binding RevealOffset}"
+                StreamingRevealRiseDuration="{Binding RevealRiseDuration}">
                 <md:MarkdownRenderer.ContextFlyout>
                   <MenuFlyout Placement="Pointer">
                     <MenuItem
@@ -154,7 +220,7 @@
             </ScrollViewer>
 
             <Border
-              Grid.Row="0" Grid.Column="2"
+              Grid.Row="1" Grid.Column="2"
               Margin="0,8,12,0" Padding="8"
               HorizontalAlignment="Right" VerticalAlignment="Top"
               Background="{DynamicResource PopupBackgroundColor}"

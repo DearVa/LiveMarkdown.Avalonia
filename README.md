@@ -152,6 +152,16 @@ markdownBuilder.Clear();
 incrementally instead of treating every token as an unrelated document. `ObservableStringBuilder` is not thread-safe;
 update it on the Avalonia UI thread. See the FAQ for completed-document caching and application-owned parsing pipelines.
 
+To fade in newly streamed text chunks while newly appearing lines rise gently, set the mode on the renderer:
+
+```xml
+<md:MarkdownRenderer StreamingRevealMode="Character" StreamingRevealDuration="0:0:0.220" StreamingRevealRiseDuration="0:0:0.380" StreamingRevealOffset="4" />
+```
+
+`Line` fades in each new visual line instead. `StreamingRevealDuration` controls the fade-in time (default 220 ms; set `0` to skip fading), `StreamingRevealRiseDuration` controls how long newly appearing lines take to rise into place (default 380 ms), and `StreamingRevealOffset` controls the rise distance in DIPs (default `4`, set `0` to disable).
+Loading a complete document shows it immediately, and selecting text finishes its reveal.
+The default mode is `None`.
+
 If you want to load local images with relative paths, you can set the `MarkdownRenderer.ImageBasePath` property.
 
 ### 4. (Optional) Enable LaTeX rendering

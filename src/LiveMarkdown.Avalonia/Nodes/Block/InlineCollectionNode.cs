@@ -47,11 +47,19 @@ public class InlineCollectionNode<TBlock> : BlockNode<TBlock> where TBlock : Lea
         CancellationToken cancellationToken)
     {
         textBlock.SourceSpan = block.Span;
-        return block.Inline is { } inline &&
+        var baseline = documentNode.Owner.BeginRevealUpdate(textBlock);
+        var result = block.Inline is { } inline &&
             inlinesNode.Update(
                 documentNode,
                 inline,
                 change,
                 cancellationToken) is not false;
+
+        if (result && baseline is { } previous)
+        {
+            textBlock.ApplyRevealUpdate(previous);
+        }
+
+        return result;
     }
 }

@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Markdig.Syntax;
 using TextMateSharp.Grammars;
 
@@ -219,6 +220,63 @@ public class CodeBlock : TemplatedControl
     private ScrollViewer? _scrollViewer;
     private IDisposable? _copyButtonClickedSubscription;
     private bool isApplyingSyntaxHighlighting; // prevent re-entrance
+    private string? _textBeforeTemplateReveal;
+    private long _templateRevealTimestamp;
+
+    internal (string Text, int LineCount)? BeginRevealUpdate(MarkdownRenderer renderer)
+    {
+        if (CodeTextBlock is { } text && text.IsAttachedToVisualTree())
+        {
+            _textBeforeTemplateReveal = null;
+            return renderer.BeginRevealUpdate(text);
+        }
+
+        // A new node is populated before its template is realized. Retain the first
+        // baseline across coalesced appends; a full load discards it before realization.
+        if (!renderer.IsApplyingStreamingUpdate)
+        {
+            _textBeforeTemplateReveal = null;
+        }
+        else if (_textBeforeTemplateReveal is null)
+        {
+            if (Inlines.Count == 0)
+            {
+                _textBeforeTemplateReveal = string.Empty;
+            }
+            else if (GetValue(MarkdownTextBlock.StreamingRevealModeProperty) != MarkdownStreamingRevealMode.None ||
+                     CodeTextBlock is { IsStreamingRevealEnabled: true })
+            {
+                _textBeforeTemplateReveal = Inlines.LayoutText;
+            }
+            if (_textBeforeTemplateReveal is not null)
+            {
+                _templateRevealTimestamp = renderer.StreamingUpdateTimestamp;
+            }
+        }
+
+        return null;
+    }
+
+    internal void TryRevealTemplateText()
+    {
+        if (_textBeforeTemplateReveal is not { } previous || CodeTextBlock is not { } text || !text.IsAttachedToVisualTree())
+        {
+            return;
+        }
+
+        _textBeforeTemplateReveal = null;
+        if (text.IsStreamingRevealEnabled && this.FindAncestorOfType<MarkdownRenderer>() is { } renderer)
+        {
+            renderer.RevealDeferredText(text, (previous, previous.Length == 0 ? 0 : -1), _templateRevealTimestamp);
+        }
+    }
+
+    /// <inheritdoc/>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _textBeforeTemplateReveal = null;
+        base.OnDetachedFromVisualTree(e);
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CodeBlock"/> class.
@@ -255,6 +313,7 @@ public class CodeBlock : TemplatedControl
 
         CodeTextBlock.Inlines = Inlines;
         CodeTextBlock.SourceSpan = SourceSpan;
+        TryRevealTemplateText();
 
         _scrollViewer = e.NameScope.Find<ScrollViewer>(ScrollViewerName);
 
@@ -333,7 +392,7 @@ public class CodeBlock : TemplatedControl
         isApplyingSyntaxHighlighting = true;
         try
         {
-            SyntaxHighlighting.Create(Language.ToLower()).FormatInlines(Inlines, ColorTheme, CustomColorTheme);
+            SyntaxHighlighting.Create(Language.ToLowerInvariant()).FormatInlines(Inlines, ColorTheme, CustomColorTheme);
         }
         finally
         {

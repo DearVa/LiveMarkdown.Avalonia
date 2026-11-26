@@ -280,6 +280,13 @@ public partial class MarkdownTextBlock : SelectableTextBlock
 
     static MarkdownTextBlock()
     {
+        StreamingRevealModeProperty.Changed.AddClassHandler<MarkdownTextBlock>((block, change) =>
+        {
+            block.IsStreamingRevealEnabled = change.GetNewValue<MarkdownStreamingRevealMode>() != MarkdownStreamingRevealMode.None;
+            block.StreamingAttachTimestamp = 0;
+            block.ClearStreamingReveal();
+        });
+
         CopyingToClipboardEvent.AddClassHandler<MarkdownTextBlock>(
             async void (o, e) =>
             {
@@ -314,6 +321,8 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     /// <inheritdoc/>
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
     {
+        StreamingAttachTimestamp = 0;
+        ClearStreamingReveal();
         SubscribeToHighlightStyles(null);
         _layoutText = null;
         _paintSnapshot = TextPaintSnapshot.Empty;
@@ -335,11 +344,14 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         base.OnAttachedToVisualTree(e);
         RefreshSelectionScope();
         InvalidateRendererTextState(e.AttachmentPoint);
+        if (IsStreamingRevealEnabled) MarkdownRenderer.RevealNewTextBlockIfStreaming(this);
     }
 
     /// <inheritdoc/>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        StreamingAttachTimestamp = 0;
+        if (_reveal is not null) ClearStreamingReveal();
         ClearLinkInteraction();
         ReleaseSelectionScope();
         InvalidateRendererTextState(e.AttachmentPoint);
@@ -351,6 +363,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     {
         base.OnAttachedToLogicalTree(e);
         SubscribeToHighlightStyles(HighlightStyles);
+        if (IsStreamingRevealEnabled) MarkdownRenderer.RememberStreamingAttachment(this);
     }
 
     /// <inheritdoc/>
@@ -360,7 +373,17 @@ public partial class MarkdownTextBlock : SelectableTextBlock
 
         if (change.Property == SelectionStartProperty || change.Property == SelectionEndProperty)
         {
+            if (_reveal is not null && SelectionStart != SelectionEnd) ClearStreamingReveal();
             SelectionScope?.UpdateSelection(this);
+        }
+
+        if (_reveal is not null &&
+            (change.Property == StreamingRevealDurationProperty ||
+             change.Property == StreamingRevealRiseDurationProperty ||
+             change.Property == StreamingRevealOffsetProperty))
+        {
+            if (EffectiveRevealDuration == TimeSpan.Zero) ClearStreamingReveal();
+            else InvalidateRevealSnapshot();
         }
 
         if (change.Property == IsVisibleProperty)
@@ -382,6 +405,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         {
             _paintSnapshotDirty = true;
             _lineGeometryLayout = null;
+            if (_reveal is not null) InvalidateRevealSnapshot();
         }
 
         if (change.Property != HighlightStylesProperty)
@@ -425,6 +449,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
 
     private void InvalidateRegisteredHighlightPaint()
     {
+        if (_reveal is not null) InvalidateRevealSnapshot();
         var hadForeground = _registeredHighlightPaintSnapshot.ForegroundSpans.Length > 0;
         _registeredHighlightPaintDirty = true;
         var hasForeground = GetRegisteredHighlightPaintSnapshot().ForegroundSpans.Length > 0;
@@ -500,6 +525,24 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     {
         var snapshot = GetPaintSnapshot(_textRuns);
         var highlightPaint = GetRegisteredHighlightPaintSnapshot();
+
+        if (_reveal?.Snapshot is { } reveal)
+        {
+            var geometry = GetLineGeometry();
+            var settled = geometry.AsSpan(0, Math.Max(0, geometry.Length - reveal.Lines.Length));
+            using (context.PushTransform(Matrix.CreateTranslation(origin)))
+            {
+                DrawPaintSpans(context, snapshot.BackgroundSpans, settled);
+                DrawPaintSpans(context, highlightPaint.BackgroundSpans, settled);
+            }
+
+            foreach (var line in settled)
+            {
+                line.TextLine.Draw(context, new Point(origin.X, origin.Y + line.Y));
+            }
+
+            return;
+        }
 
         if (snapshot.BackgroundSpans.Length == 0 && highlightPaint.BackgroundSpans.Length == 0)
         {
@@ -736,7 +779,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         return new Point(padding.Left, top);
     }
 
-    private static void DrawPaintSpans(DrawingContext context, IReadOnlyList<TextPaintSpan> spans, TextLineGeometry[] lines)
+    private static void DrawPaintSpans(DrawingContext context, IReadOnlyList<TextPaintSpan> spans, ReadOnlySpan<TextLineGeometry> lines)
     {
         foreach (var span in spans)
         {
@@ -744,7 +787,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         }
     }
 
-    private static void DrawPaintSpan(DrawingContext context, in TextPaintSpan span, TextLineGeometry[] lines)
+    private static void DrawPaintSpan(DrawingContext context, in TextPaintSpan span, ReadOnlySpan<TextLineGeometry> lines)
     {
         if (span.Length <= 0)
         {
@@ -820,19 +863,23 @@ public partial class MarkdownTextBlock : SelectableTextBlock
             return;
         }
 
+        var paddedRect = GetPaintRectangle(value, span, leadingMargin, trailingMargin);
+        context.DrawRectangle(span.Brush, span.BorderPen, new RoundedRect(paddedRect, span.CornerRadius));
+    }
+
+    private static Rect GetPaintRectangle(Rect value, in TextPaintSpan span, double leadingMargin, double trailingMargin)
+    {
         var contentRect = new Rect(
             value.X + leadingMargin,
             value.Y + span.BackgroundInset.Top,
             Math.Max(0, value.Width - leadingMargin - trailingMargin),
             Math.Max(0, value.Height - span.BackgroundInset.Top - span.BackgroundInset.Bottom));
 
-        var paddedRect = new Rect(
+        return new Rect(
             contentRect.X - span.Padding.Left,
             contentRect.Y - span.Padding.Top,
             contentRect.Width + span.Padding.Left + span.Padding.Right,
             contentRect.Height + span.Padding.Top + span.Padding.Bottom);
-
-        context.DrawRectangle(span.Brush, span.BorderPen, new RoundedRect(paddedRect, span.CornerRadius));
     }
 
     private TextPaintSnapshot GetPaintSnapshot(IReadOnlyList<TextRun>? textRuns)
@@ -944,7 +991,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
         return result;
     }
 
-    private static int FindFirstLine(TextLineGeometry[] lines, int start)
+    private static int FindFirstLine(ReadOnlySpan<TextLineGeometry> lines, int start)
     {
         var low = 0;
         var high = lines.Length;
@@ -1868,6 +1915,7 @@ public partial class MarkdownTextBlock : SelectableTextBlock
     internal void InvalidateInlineDecorations(bool affectsLayout = false)
     {
         _paintSnapshotDirty = true;
+        if (_reveal is not null) InvalidateRevealSnapshot();
 
         if (affectsLayout)
         {

@@ -84,6 +84,11 @@ public partial class MainView : UserControl
 
     private void HandleViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.MarkdownBuilder) && _linkInteraction is not null)
+        {
+            MarkdownRenderer.MarkdownBuilder = viewModel.MarkdownBuilder;
+        }
+
         if (e.PropertyName == nameof(MainViewModel.SelectedMarkdown) && _linkInteraction is not null)
         {
             _linkInteraction.Dismiss();
